@@ -6,8 +6,10 @@ export interface QuestionPack {
   packPassword?: string;
   name: string;
   description: string;
-  gameRules?: string; // New: Global game rules
-  roundRules?: Record<number, string>; // New: Rules specific to Round N
+  gameRules?: string;
+  // Add BOTH of these lines here:
+  roundNames?: Record<number, string>;
+  roundRules?: Record<number, string>;
   createdAt: string;
   updatedAt: string;
   questions: Question[];
@@ -21,6 +23,8 @@ export interface GameSession {
   currentRound: number;
   createdAt: string;
   teamCount: number;
+  roundNames?: { [key: number]: string };
+  roundRules?: { [key: number]: string };
 }
 
 export function createEmptyPack(): QuestionPack {
@@ -40,7 +44,7 @@ export function createEmptyQuestion(round: number): Question {
     round,
     text: '',
     answer: '',
-    category: '',
+    // category removed here to match your new QuestionEditor
     type: round === 6 ? 'mcq' : 'text',
     ...(round === 6 ? { options: ['', '', '', ''] } : {}),
   };

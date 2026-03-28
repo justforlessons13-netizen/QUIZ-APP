@@ -1,23 +1,16 @@
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Image, Loader2 } from 'lucide-react'; // Added Loader2
+import { Trash2, Image, Loader2 } from 'lucide-react';
 import { Question } from '@/types/game';
-import { useMediaUpload } from '@/hooks/useMediaUpload'; // <--- Import the hook
-
-const CATEGORY_PRESETS = [
-  '🌍 Geography', '📜 History', '🔬 Science', '🎨 Art', '🌿 Nature',
-  '🎬 Movies', '🎵 Music', '⚽ Sports', '📺 TV Shows', '🍕 Food & Drink',
-  '💻 Technology', '📖 Literature', '🎮 Gaming', '🧠 General Knowledge',
-];
+import { useMediaUpload } from '@/hooks/useMediaUpload';
 
 interface QuestionEditorProps {
   question: Question;
-  packId: string; // <--- Added packId so we know where to upload
+  packId: string;
   roundNumber: number;
   questionNumber?: number;
   onChange: (updated: Question) => void;
@@ -27,16 +20,14 @@ interface QuestionEditorProps {
 
 export function QuestionEditor({
   question,
-  packId, // <--- Destructure packId
+  packId,
   roundNumber,
   questionNumber,
   onChange,
   onDelete,
   canDelete = false,
 }: QuestionEditorProps) {
-  // Initialize hook
   const { uploadMedia, uploading } = useMediaUpload();
-  
   const isRound6 = roundNumber === 6;
 
   const update = (fields: Partial<Question>) => {
@@ -52,10 +43,8 @@ export function QuestionEditor({
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      // Upload using the packId passed from parent
       const url = await uploadMedia(file, packId);
-      // Save the URL to the question object
-      update({ mediaUrl: url }); 
+      update({ mediaUrl: url });
     }
   };
 
@@ -76,22 +65,6 @@ export function QuestionEditor({
         )}
       </div>
 
-      {/* Category */}
-      <div className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">Category</Label>
-        <Select value={question.category} onValueChange={v => update({ category: v })}>
-          <SelectTrigger className="bg-secondary/50 border-border">
-            <SelectValue placeholder="Choose category" />
-          </SelectTrigger>
-          <SelectContent>
-            {CATEGORY_PRESETS.map(cat => (
-              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Question Text */}
       <div className="space-y-1.5">
         <Label className="text-xs text-muted-foreground">Question</Label>
         <Textarea
@@ -102,7 +75,6 @@ export function QuestionEditor({
         />
       </div>
 
-      {/* Answer Type for Round 6 */}
       {isRound6 && (
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Answer Type</Label>
@@ -118,7 +90,6 @@ export function QuestionEditor({
         </div>
       )}
 
-      {/* MCQ Options */}
       {question.type === 'mcq' && (
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">Options (mark the correct one as the Answer below)</Label>
@@ -136,7 +107,6 @@ export function QuestionEditor({
         </div>
       )}
 
-      {/* Answer */}
       <div className="space-y-1.5">
         <Label className="text-xs text-muted-foreground">Correct Answer</Label>
         <Input
@@ -147,11 +117,8 @@ export function QuestionEditor({
         />
       </div>
 
-      {/* Media Upload Section */}
       <div className="space-y-2">
         <Label className="text-xs text-muted-foreground">Media (Optional)</Label>
-        
-        {/* Upload Control */}
         <div className="flex items-center gap-3">
           <div className="relative">
             <input
@@ -161,11 +128,11 @@ export function QuestionEditor({
               disabled={uploading}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
             />
-            <Button 
-              type="button" 
-              variant="secondary" 
-              size="sm" 
-              className="pointer-events-none" // Events pass through to input
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="pointer-events-none"
             >
               {uploading ? (
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -175,8 +142,6 @@ export function QuestionEditor({
               {uploading ? 'Uploading...' : 'Choose File'}
             </Button>
           </div>
-          
-          {/* Fallback URL input (if they still want to paste links) */}
           <Input
             value={question.mediaUrl || ''}
             onChange={e => update({ mediaUrl: e.target.value })}
@@ -186,27 +151,21 @@ export function QuestionEditor({
           />
         </div>
 
-        {/* Preview */}
         {question.mediaUrl && (
           <div className="mt-2 rounded-lg overflow-hidden border border-border bg-black/20 relative group">
             <div className="aspect-video w-full flex items-center justify-center">
-              {/* Basic image preview - you can expand this for video/audio later */}
               <img
                 src={question.mediaUrl}
                 alt="Preview"
                 className="max-h-48 object-contain"
                 onError={(e) => {
-                  // Fallback for non-image media (like audio/video)
                   e.currentTarget.style.display = 'none';
                 }}
               />
-              {/* Show icon if image fails (likely audio/video) */}
               <div className="absolute inset-0 flex items-center justify-center -z-10 text-muted-foreground text-xs">
                 Media File Loaded
               </div>
             </div>
-            
-            {/* Remove button */}
             <Button
               variant="destructive"
               size="icon"

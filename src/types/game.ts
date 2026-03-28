@@ -12,10 +12,9 @@ export interface Question {
   round: number;
   text: string;
   answer: string;
-  category: string;
   type: 'text' | 'mcq';
-  options?: string[];
   mediaUrl?: string;
+  options?: string[];
 }
 
 export interface Submission {

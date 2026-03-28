@@ -38,11 +38,9 @@ export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }
   const addQuestionToRound = (round: number) => {
     setDraft(prev => {
       const newQ = createEmptyQuestion(round);
-      // Insert after the last question of this round
       const lastIndex = prev.questions.reduce((last, q, i) => q.round === round ? i : last, -1);
       const questions = [...prev.questions];
       if (lastIndex === -1) {
-        // Find correct insertion point to keep sorted by round
         const insertAt = questions.findIndex(q => q.round > round);
         questions.splice(insertAt === -1 ? questions.length : insertAt, 0, newQ);
       } else {
@@ -65,7 +63,6 @@ export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }
       return;
     }
 
-    // Ensure every round has at least 1 question
     const emptyRounds = [1, 2, 3, 4, 5, 6].filter(r => !draft.questions.some(q => q.round === r));
     if (emptyRounds.length > 0) {
       toast({
@@ -103,7 +100,6 @@ export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <Button variant="ghost" size="sm" onClick={onBack}>
           <ArrowLeft className="w-4 h-4 mr-1" /> Back
@@ -120,7 +116,6 @@ export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }
         </div>
       </div>
 
-      {/* Pack Metadata */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -165,7 +160,6 @@ export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }
         </div>
       </motion.div>
 
-      {/* Overview panel */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -188,9 +182,8 @@ export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }
                   {roundQs.map(q => (
                     <div
                       key={q.id}
-                      className={`h-2 flex-1 rounded-full transition-colors ${
-                        q.text.trim() && q.answer.trim() ? 'bg-success/60' : 'bg-muted'
-                      }`}
+                      className={`h-2 flex-1 rounded-full transition-colors ${q.text.trim() && q.answer.trim() ? 'bg-success/60' : 'bg-muted'
+                        }`}
                     />
                   ))}
                   {roundQs.length === 0 && (
@@ -205,7 +198,6 @@ export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }
         </div>
       </motion.div>
 
-      {/* Round Tabs */}
       <Tabs value={activeRound} onValueChange={setActiveRound}>
         <TabsList className="w-full grid grid-cols-6 bg-secondary/50">
           {[1, 2, 3, 4, 5, 6].map(r => {
@@ -234,18 +226,33 @@ export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }
           const roundQs = draft.questions.filter(q => q.round === r);
           return (
             <TabsContent key={r} value={String(r)} className="space-y-3">
-              <div className="p-4 rounded-xl border border-border bg-card space-y-2 mb-4">
-    <Label className="text-xs font-bold text-primary">Round {r} Rules</Label>
-    <Input
-      value={draft.roundRules?.[r] || ''}
-      onChange={e => {
-        const newRules = { ...draft.roundRules, [r]: e.target.value };
-        updateMeta({ roundRules: newRules });
-      }}
-      placeholder={`Special rules for Round ${r}...`}
-      className="bg-secondary/50 border-border"
-    />
-  </div>
+              <div className="p-4 rounded-xl border border-border bg-card space-y-4 mb-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-primary uppercase">Round {r} Display Title</Label>
+                  <Input
+                    value={draft.roundNames?.[r] || ''}
+                    onChange={e => {
+                      const newNames = { ...draft.roundNames, [r]: e.target.value };
+                      updateMeta({ roundNames: newNames });
+                    }}
+                    placeholder="e.g. Science & Nature"
+                    className="bg-secondary/50 border-border h-9"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-primary uppercase">Round {r} Rules</Label>
+                  <Textarea
+                    value={draft.roundRules?.[r] || ''}
+                    onChange={e => {
+                      const newRules = { ...draft.roundRules, [r]: e.target.value };
+                      updateMeta({ roundRules: newRules });
+                    }}
+                    placeholder="Each rule on a new line..."
+                    className="bg-secondary/50 border-border min-h-[100px] resize-none"
+                  />
+                </div>
+              </div>
+
               {roundQs.map((q, qIdx) => (
                 <QuestionEditor
                   key={q.id}
