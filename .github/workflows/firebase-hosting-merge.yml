@@ -1,0 +1,28 @@
+# This file tells GitHub Actions to deploy to Firebase Hosting on every push to "main"
+name: Deploy to Firebase Hosting on merge
+'on':
+  push:
+    branches:
+      - main # Change this if your main branch is named "master"
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Dependencies
+        run: npm ci # Use 'npm install' if you don't have a package-lock.json
+
+      - name: Build Project
+        run: npm run build
+        env:
+          # If you use environment variables for Firebase keys, add them here
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_MY_APP_E17BE }}'
+          channelId: live
+          projectId: "my-app-e17be" # Replace with your actual Firebase Project ID

@@ -1,0 +1,101 @@
+/* 1. Import Bungee from Google Fonts (Must be line 1) */
+@import url('https://fonts.googleapis.com/css2?family=Bungee&display=swap');
+
+/* Setup Sugo Display from your local files */
+@font-face {
+  /* We keep the family name exactly 'Sugo Display' so your Tailwind config still recognizes it! */
+  font-family: 'Sugo Display';
+  src: url('/fonts/Sugo-Pro-Display-Light-trial.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 225 40% 8%;
+    --foreground: 210 30% 95%;
+    --card: 225 35% 12%;
+    --card-foreground: 210 30% 95%;
+    --popover: 225 35% 14%;
+    --popover-foreground: 210 30% 95%;
+    --primary: 185 90% 50%;
+    --primary-foreground: 225 50% 6%;
+    --secondary: 225 30% 18%;
+    --secondary-foreground: 210 30% 95%;
+    --muted: 225 25% 15%;
+    --muted-foreground: 220 15% 55%;
+    --accent: 330 90% 60%;
+    --accent-foreground: 210 30% 95%;
+    --destructive: 0 85% 55%;
+    --destructive-foreground: 210 30% 95%;
+    --border: 225 25% 20%;
+    --input: 225 25% 20%;
+    --ring: 185 90% 50%;
+    --radius: 0.75rem;
+    --success: 145 80% 42%;
+    --success-foreground: 210 30% 95%;
+    --gold: 45 95% 55%;
+    --gold-foreground: 225 50% 6%;
+    --silver: 220 10% 72%;
+    --bronze: 25 60% 48%;
+
+    --sidebar-background: 225 35% 10%;
+    --sidebar-foreground: 210 30% 95%;
+    --sidebar-primary: 185 90% 50%;
+    --sidebar-primary-foreground: 225 50% 6%;
+    --sidebar-accent: 225 30% 18%;
+    --sidebar-accent-foreground: 210 30% 95%;
+    --sidebar-border: 225 25% 20%;
+    --sidebar-ring: 185 90% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    /* This keeps your dashboards looking normal, while the game wrapper uses Sugo */
+    font-family: 'Space Grotesk', sans-serif;
+  }
+}
+
+@layer utilities {
+  .text-glow-primary {
+    text-shadow: 0 0 20px hsl(185 90% 50% / 0.5), 0 0 60px hsl(185 90% 50% / 0.2);
+  }
+
+  .text-glow-accent {
+    text-shadow: 0 0 20px hsl(330 90% 60% / 0.5), 0 0 60px hsl(330 90% 60% / 0.2);
+  }
+
+  .text-glow-gold {
+    text-shadow: 0 0 30px hsl(45 95% 55% / 0.6), 0 0 80px hsl(45 95% 55% / 0.3);
+  }
+
+  .text-glow-success {
+    text-shadow: 0 0 20px hsl(145 80% 42% / 0.5);
+  }
+
+  .box-glow-primary {
+    box-shadow: 0 0 25px hsl(185 90% 50% / 0.25), 0 0 50px hsl(185 90% 50% / 0.1);
+  }
+
+  .box-glow-accent {
+    box-shadow: 0 0 25px hsl(330 90% 60% / 0.25), 0 0 50px hsl(330 90% 60% / 0.1);
+  }
+
+  .box-glow-gold {
+    box-shadow: 0 0 30px hsl(45 95% 55% / 0.3), 0 0 60px hsl(45 95% 55% / 0.15);
+  }
+
+  .bg-radial-dark {
+    background: radial-gradient(ellipse at top, hsl(225 40% 14%) 0%, hsl(225 40% 8%) 50%, hsl(225 45% 5%) 100%);
+  }
+}
