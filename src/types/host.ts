@@ -49,3 +49,25 @@ export function createEmptyQuestion(round: number): Question {
     ...(round === 6 ? { options: ['', '', '', ''] } : {}),
   };
 }
+
+// This function determines which team ranks higher
+export const compareTeams = (teamA: any, teamB: any) => {
+  // 1. First, compare the absolute Total Score
+  if (teamB.totalScore !== teamA.totalScore) {
+    return teamB.totalScore - teamA.totalScore;
+  }
+
+  // 2. If Total Scores are equal, start the Tie-Breaker Loop
+  // We start at Round 6 and go backwards to Round 1
+  for (let r = 6; r >= 1; r--) {
+    const scoreA = teamA.roundScores?.[r] || 0;
+    const scoreB = teamB.roundScores?.[r] || 0;
+
+    if (scoreB !== scoreA) {
+      return scoreB - scoreA; // Return the first round where scores differ
+    }
+  }
+
+  // 3. If they are identical in every single round, it's a true tie
+  return 0;
+};

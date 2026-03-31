@@ -38,6 +38,6 @@ export const initialTeams: Team[] = [
   { id: 'player', name: 'Your Team', emoji: '🎯', score: 0, roundScores: [], isPlayer: true },
   { id: 'team_b', name: 'Brain Busters', emoji: '🧠', score: 0, roundScores: [], isPlayer: false },
   { id: 'team_c', name: 'Quiz Wizards', emoji: '🧙', score: 0, roundScores: [], isPlayer: false },
-  { id: 'team_d', name: 'Smarty Pints', emoji: '🍺', score: 0, roundScores: [], isPlayer: false },
+  { id: 'team_d', name: 'Unity Units', emoji: '🤝', score: 0, roundScores: [], isPlayer: false },
   { id: 'team_e', name: 'The Know-It-Alls', emoji: '📚', score: 0, roundScores: [], isPlayer: false },
 ];

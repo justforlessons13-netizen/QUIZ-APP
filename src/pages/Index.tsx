@@ -196,7 +196,7 @@ export default function Index() {
           className="font-bungee uppercase tracking-widest"
           style={{ fontSize: '11px', color: 'rgba(173,187,255,0.3)' }}
         >
-          Built for QGame 🍻
+          Built for QGame
         </span>
       </motion.footer>
     </div>

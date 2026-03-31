@@ -6,7 +6,7 @@ interface GameRulesDisplayProps {
 }
 
 export function GameRulesDisplay({ rules, onContinue }: GameRulesDisplayProps) {
-  // Convert the single string from your database into an array.
+  // Convert the single string from your database into an array
   const displayRules = rules && rules.trim().length > 0
     ? rules.split('\n').filter(rule => rule.trim() !== '')
     : [
@@ -20,12 +20,10 @@ export function GameRulesDisplay({ rules, onContinue }: GameRulesDisplayProps) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      // Full height container allows us to push the button to the absolute bottom
-      className="flex flex-col items-center w-full h-[calc(100vh-100px)] max-w-6xl mx-auto px-6 z-10 pt-[8vh]"
+      className="flex flex-col items-center w-full h-[calc(100vh-100px)] max-w-7xl mx-auto px-6 z-10 pt-[8vh]"
     >
       {/* --- Title Section --- */}
       <div className="text-center flex flex-col items-center">
-        {/* Changed tracking-widest to tracking-normal to tighten letter spacing */}
         <h1
           className="text-[65px] font-bungee text-white leading-none tracking-normal uppercase"
           style={{
@@ -34,47 +32,38 @@ export function GameRulesDisplay({ rules, onContinue }: GameRulesDisplayProps) {
         >
           Game Rules
         </h1>
-        {/* Exactly 25px Subtitle */}
+        {/* Preserved your exactly 25px subtitle */}
         <p className="text-[25px] tracking-[0.1em] uppercase font-sugo text-[#d9d9d9] mt-2">
           Review the rules before we begin
         </p>
       </div>
 
-      {/* --- Rules List Container --- */}
-      {/* Grey Gradient Background matches the Canva overlay */}
-      <div className="w-full bg-gradient-to-r from-transparent via-[#d9d9d9]/10 to-transparent py-6 px-4 md:px-12 mt-10">
-        <ul className="space-y-4 flex flex-col items-start max-w-4xl mx-auto">
-
+      {/* --- Rules List (Now matches Round Rules style: Centered & No Circles) --- */}
+      <div className="w-full bg-gradient-to-r from-transparent via-[#d9d9d9]/10 to-transparent py-10 mt-10 mb-8">
+        <div className="flex flex-col items-center gap-5 text-center">
           {displayRules.map((rule, index) => (
-            <motion.li
+            <motion.p
               key={index}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.15 + 0.3 }}
-              className="flex items-start gap-4"
+              className="text-[28px] font-sugo uppercase text-[#d9d9d9] tracking-widest leading-relaxed drop-shadow-md"
             >
-              {/* Perfectly sized grey circle with dark number */}
-              <span className="flex-shrink-0 w-[32px] h-[32px] rounded-full bg-[#d9d9d9] text-[#120524] flex items-center justify-center font-bold text-lg font-sans mt-1">
-                {index + 1}
-              </span>
-              {/* Exactly 28px Grey Text */}
-              <span className="text-[28px] leading-none pt-1 font-sugo uppercase text-[#d9d9d9] tracking-wider">
-                {rule.replace(/^[\s-]+/, '')}
-              </span>
-            </motion.li>
+              {/* Removes leading numbers or dots automatically */}
+              {rule.replace(/^[\s\d.-]+/, '')}
+            </motion.p>
           ))}
-
-        </ul>
+        </div>
       </div>
 
-      {/* --- Action Button --- */}
+      {/* --- Action Button (Now Smaller & Sleeker) --- */}
       <motion.button
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 1 }}
         onClick={onContinue}
-        // Swapped fixed width/height for dynamic padding (px-10 py-2) to shrink the background
-        className="bg-[#adbbff] text-[#120524] font-bungee text-[32px] md:text-[40px] px-10 py-2 rounded-lg hover:scale-105 transition-transform uppercase flex items-center justify-center mt-auto mb-[8vh] shadow-[0_0_20px_rgba(173,187,255,0.2)]"
+        // Reduced text to 20px and padding to px-8 py-3 to match the sleek Round Rules button
+        className="bg-[#adbbff] text-[#120524] font-bungee text-[20px] px-8 py-3 rounded-md hover:scale-105 transition-transform uppercase flex items-center justify-center mt-auto mb-[8vh] shadow-[0_0_15px_rgba(173,187,255,0.2)]"
       >
         Let's Play
       </motion.button>
