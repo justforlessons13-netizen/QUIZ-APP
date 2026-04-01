@@ -15,6 +15,7 @@ interface QuestionDisplayProps {
   onActivate: () => void;
   onCollectAnswers: () => void;
   projectorMode?: boolean;
+  timerActive?: boolean;
 }
 
 // ─── Animated Waveform ────────────────────────────────────────────────────────
@@ -90,11 +91,18 @@ export function QuestionDisplay({
   maxTime,
   onCollectAnswers,
   projectorMode,
+  timerActive,
   onActivate,
 }: QuestionDisplayProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isActivated, setIsActivated] = useState(false);
+
+  useEffect(() => {
+    if (timerActive || timeLeft < maxTime) {
+      setIsActivated(true);
+    }
+  }, [timerActive, timeLeft, maxTime]);
 
   const url = question.mediaUrl?.toLowerCase() || '';
   const isAudio = url.includes('.mp3') || url.includes('.wav') || url.includes('.m4a') || url.includes('.ogg');
@@ -132,7 +140,7 @@ export function QuestionDisplay({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="relative flex flex-col items-center w-full h-[calc(100vh-100px)] max-w-[1920px] mx-auto px-8 md:px-16 z-10 pt-[5vh]"
+      className="relative flex flex-col items-center w-full h-[calc(100dvh-100px)] md:h-[calc(100vh-100px)] max-w-[1920px] mx-auto px-8 md:px-16 z-10 pt-[5vh]"
     >
       {/* Hidden timer — handles tick sounds only */}
       {isActivated && (
@@ -167,7 +175,8 @@ export function QuestionDisplay({
       </div>
 
       {/* ── MAIN CONTENT ── */}
-      <div className="flex-1 flex flex-col items-center justify-center w-full max-w-[1585px] gap-6">
+      <div className="flex-1 w-full max-w-[1585px] overflow-y-auto no-scrollbar min-h-0 pb-28 md:pb-0 flex flex-col">
+        <div className="m-auto flex flex-col items-center justify-center w-full gap-6 py-4">
 
         {/* TEXT ONLY — big centered question */}
         {!hasMedia && (
@@ -252,6 +261,7 @@ export function QuestionDisplay({
             </motion.div>
           </>
         )}
+        </div>
       </div>
 
       {/* ── HOST BUTTONS ── */}
@@ -260,7 +270,7 @@ export function QuestionDisplay({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="mt-auto mb-[6vh] z-10"
+          className="fixed bottom-6 left-0 right-0 flex justify-center z-50 px-4 md:relative md:bottom-auto md:mt-auto md:mb-[6vh]"
         >
           {!isActivated ? (
             <button

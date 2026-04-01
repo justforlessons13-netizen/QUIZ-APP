@@ -77,9 +77,20 @@ export function GameAudioController({
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !blobUrl) return;
+    if (!audio) return;
 
-    audio.src = blobUrl;
+    // If there's no blobUrl (e.g. track is ''), pause and clear src.
+    if (!blobUrl) {
+      audio.pause();
+      setIsPlaying(false);
+      return;
+    }
+
+    // Only update the src if it actually changed to prevent resetting to 0:00!
+    if (audio.src !== blobUrl) {
+      audio.src = blobUrl;
+    }
+
     audio.volume = isMuted ? 0 : volume;
 
     // Background music stays silent if it's a question phase AND (timer is off OR question has its own sound)

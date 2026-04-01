@@ -200,6 +200,7 @@ function LiveGameController({
               onActivate={startTimer}
               onCollectAnswers={finishQuestion}
               projectorMode={projectorMode}
+              timerActive={game.timerActive}
             />
           )}
 
