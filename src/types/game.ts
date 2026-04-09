@@ -14,6 +14,7 @@ export interface Question {
   answer: string;
   type: 'text' | 'mcq';
   mediaUrl?: string;
+  answerMediaUrl?: string;
   options?: string[];
 }
 

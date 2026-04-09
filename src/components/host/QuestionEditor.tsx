@@ -40,11 +40,11 @@ export function QuestionEditor({
     update({ options });
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'mediaUrl' | 'answerMediaUrl') => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const url = await uploadMedia(file, packId);
-      update({ mediaUrl: url });
+      update({ [field]: url });
     }
   };
 
@@ -124,7 +124,7 @@ export function QuestionEditor({
             <input
               type="file"
               accept="image/*,video/*,audio/*"
-              onChange={handleFileChange}
+              onChange={(e) => handleMediaUpload(e, 'mediaUrl')}
               disabled={uploading}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
             />
@@ -154,14 +154,18 @@ export function QuestionEditor({
         {question.mediaUrl && (
           <div className="mt-2 rounded-lg overflow-hidden border border-border bg-black/20 relative group">
             <div className="aspect-video w-full flex items-center justify-center">
-              <img
-                src={question.mediaUrl}
-                alt="Preview"
-                className="max-h-48 object-contain"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
+              {question.mediaUrl.match(/\.(mp3|wav|ogg|m4a)($|\?)/i) ? (
+                <audio src={question.mediaUrl} controls className="w-full max-h-48" />
+              ) : (
+                <img
+                  src={question.mediaUrl}
+                  alt="Preview"
+                  className="max-h-48 object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              )}
               <div className="absolute inset-0 flex items-center justify-center -z-10 text-muted-foreground text-xs">
                 Media File Loaded
               </div>
@@ -170,7 +174,72 @@ export function QuestionEditor({
               variant="destructive"
               size="icon"
               className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={() => update({ mediaUrl: '' })}
+              onClick={() => update({ mediaUrl: undefined })}
+            >
+              <Trash2 className="w-3 h-3" />
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Answer Media (Optional)</Label>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <input
+              type="file"
+              accept="image/*,video/*,audio/*"
+              onChange={(e) => handleMediaUpload(e, 'answerMediaUrl')}
+              disabled={uploading}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="pointer-events-none"
+            >
+              {uploading ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Image className="w-4 h-4 mr-2" />
+              )}
+              {uploading ? 'Uploading...' : 'Choose File'}
+            </Button>
+          </div>
+          <Input
+            value={question.answerMediaUrl || ''}
+            onChange={e => update({ answerMediaUrl: e.target.value })}
+            placeholder="...or paste a URL here"
+            className="bg-secondary/50 border-border text-xs flex-1 h-9"
+            disabled={uploading}
+          />
+        </div>
+
+        {question.answerMediaUrl && (
+          <div className="mt-2 rounded-lg overflow-hidden border border-border bg-black/20 relative group">
+            <div className="aspect-video w-full flex items-center justify-center">
+              {question.answerMediaUrl.match(/\.(mp3|wav|ogg|m4a)($|\?)/i) ? (
+                <audio src={question.answerMediaUrl} controls className="w-full max-h-48" />
+              ) : (
+                <img
+                  src={question.answerMediaUrl}
+                  alt="Preview"
+                  className="max-h-48 object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              )}
+              <div className="absolute inset-0 flex items-center justify-center -z-10 text-muted-foreground text-xs">
+                Media File Loaded
+              </div>
+            </div>
+            <Button
+              variant="destructive"
+              size="icon"
+              className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={() => update({ answerMediaUrl: undefined })}
             >
               <Trash2 className="w-3 h-3" />
             </Button>

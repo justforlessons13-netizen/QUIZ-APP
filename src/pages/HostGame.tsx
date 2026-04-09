@@ -9,6 +9,7 @@ import { QuestionDisplay } from '@/components/host-game/QuestionDisplay';
 import { HostGrading } from '@/components/host-game/HostGrading';
 import { RoundReveal } from '@/components/host-game/RoundReveal';
 import { LiveLeaderboard } from '@/components/host-game/LiveLeaderboard';
+import { LotteryRandomizer } from '@/components/host-game/LotteryRandomizer';
 import { useEffect, useState, useCallback } from 'react';
 import { getFirestore, setDoc, doc, getDoc } from 'firebase/firestore';
 import { GameRulesDisplay } from '@/components/host-game/GameRulesDisplay';
@@ -59,6 +60,9 @@ function LiveGameController({
     startRound,
     advanceFromReveal,
     advanceFromLeaderboard,
+    advanceFromLottery,
+    initializeLottery,
+    drawLotteryNumber,
     resetGame,
     updateRevealStep,
   } = useLiveGame(
@@ -110,6 +114,7 @@ function LiveGameController({
         timerActive={game.timerActive}
         hasMediaContent={questionHasSound}
         volume={0.2}
+        forceMuted={!projectorMode}
       />
 
       {/* FIXED HEADER: Now matches your Canva mockups perfectly */}
@@ -174,6 +179,7 @@ function LiveGameController({
             <GameRulesDisplay
               key="game-rules"
               rules={pack.gameRules}
+              projectorMode={projectorMode}
               onContinue={advanceToRoundRules}
             />
           )}
@@ -183,6 +189,7 @@ function LiveGameController({
               key={`round-rules-${game.currentRound}`}
               round={game.currentRound}
               rules={pack.roundRules?.[game.currentRound]}
+              projectorMode={projectorMode}
               onStartRound={startRound}
             />
           )}
@@ -250,6 +257,18 @@ function LiveGameController({
               totalRounds={6}
               onContinue={advanceFromReveal}
               projectorMode={projectorMode}
+              questionInRound={questionNumberInRound}
+            />
+          )}
+
+          {game.phase === 'lottery' && (
+            <LotteryRandomizer
+              key="lottery"
+              lotteryState={game.lotteryState}
+              projectorMode={projectorMode}
+              onInitialize={initializeLottery}
+              onDraw={drawLotteryNumber}
+              onContinue={advanceFromLottery}
             />
           )}
 

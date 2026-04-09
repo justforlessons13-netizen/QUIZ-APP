@@ -110,4 +110,13 @@
   .bg-radial-dark {
     background: radial-gradient(ellipse at top, hsl(225 40% 14%) 0%, hsl(225 40% 8%) 50%, hsl(225 45% 5%) 100%);
   }
+
+  /* Hidden scrollbar utilities */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }

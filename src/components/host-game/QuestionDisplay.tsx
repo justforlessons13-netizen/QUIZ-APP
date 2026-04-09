@@ -117,12 +117,14 @@ export function QuestionDisplay({
   useEffect(() => {
     if (!isActivated || !hasMedia) return;
     if (isAudio && audioRef.current) {
+      audioRef.current.muted = !projectorMode;
       audioRef.current.play().catch(() => { });
     }
     if (isVideo && videoRef.current) {
+      videoRef.current.muted = !projectorMode;
       videoRef.current.play().catch(() => { });
     }
-  }, [isActivated, isAudio, isVideo, hasMedia]);
+  }, [isActivated, isAudio, isVideo, hasMedia, projectorMode]);
 
   const handleActivate = () => {
     setIsActivated(true);
@@ -270,7 +272,7 @@ export function QuestionDisplay({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="fixed bottom-6 left-0 right-0 flex justify-center z-50 px-4 md:relative md:bottom-auto md:mt-auto md:mb-[6vh]"
+          className="fixed bottom-6 left-0 right-0 flex justify-center z-50 px-4 md:relative md:bottom-auto md:mt-auto md:mb-6"
         >
           {!isActivated ? (
             <button

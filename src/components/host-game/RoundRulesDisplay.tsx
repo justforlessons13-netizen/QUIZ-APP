@@ -4,10 +4,11 @@ interface RoundRulesDisplayProps {
   round: number;
   roundName?: string; // New prop for custom naming
   rules?: string;
+  projectorMode?: boolean;
   onStartRound: () => void;
 }
 
-export function RoundRulesDisplay({ round, roundName, rules, onStartRound }: RoundRulesDisplayProps) {
+export function RoundRulesDisplay({ round, roundName, rules, projectorMode, onStartRound }: RoundRulesDisplayProps) {
   // This splits the long text from your input by "Enter" (newline)
   // and removes any empty lines
   const displayRules = rules && rules.trim().length > 0
@@ -54,15 +55,21 @@ export function RoundRulesDisplay({ round, roundName, rules, onStartRound }: Rou
       </div>
 
       {/* --- ACTION BUTTON --- */}
-      <motion.button
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.8 }}
-        onClick={onStartRound}
-        className="bg-[#adbbff] text-[#120524] font-bungee text-[20px] px-8 py-3 rounded-md hover:scale-105 transition-transform uppercase flex items-center justify-center mt-auto mb-[8vh] shadow-[0_0_15px_rgba(173,187,255,0.2)] z-10"
-      >
-        Here We Go!
-      </motion.button>
+      {!projectorMode && (
+        <motion.button
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
+          onClick={() => {
+            const audio = new Audio('/assets/here-we-go.mp3');
+            audio.play().catch(() => {});
+            onStartRound();
+          }}
+          className="bg-[#adbbff] text-[#120524] font-bungee text-[20px] px-8 py-3 rounded-md hover:scale-105 transition-transform uppercase flex items-center justify-center mt-auto mb-[8vh] shadow-[0_0_15px_rgba(173,187,255,0.2)] z-10"
+        >
+          Here We Go!
+        </motion.button>
+      )}
     </motion.div>
   );
 }

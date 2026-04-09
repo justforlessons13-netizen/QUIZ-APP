@@ -18,12 +18,14 @@ export function GameAudioController({
   phase,
   timerActive = false,
   hasMediaContent = false,
-  volume = 0.3
+  volume = 0.3,
+  forceMuted = false
 }: {
   phase: HostGamePhase,
   timerActive?: boolean,
   hasMediaContent?: boolean,
-  volume?: number
+  volume?: number,
+  forceMuted?: boolean
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [track, setTrack] = useState('');
@@ -91,7 +93,7 @@ export function GameAudioController({
       audio.src = blobUrl;
     }
 
-    audio.volume = isMuted ? 0 : volume;
+    audio.volume = isMuted || forceMuted ? 0 : volume;
 
     // Background music stays silent if it's a question phase AND (timer is off OR question has its own sound)
     const shouldActuallyPlay = phase !== 'question' || (timerActive && !hasMediaContent);
@@ -117,7 +119,7 @@ export function GameAudioController({
       audio.pause();
       setIsPlaying(false);
     }
-  }, [blobUrl, isMuted, volume, timerActive, phase, hasMediaContent]);
+  }, [blobUrl, isMuted, volume, timerActive, phase, hasMediaContent, forceMuted]);
 
   const togglePlay = () => {
     if (!audioRef.current) return;

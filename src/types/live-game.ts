@@ -33,6 +33,7 @@ export type HostGamePhase =
   | 'answer-collection'
   | 'grading'
   | 'reveal'
+  | 'lottery'
   | 'leaderboard'
   | 'final-reveal'
   | 'finished';
@@ -52,6 +53,12 @@ export interface LiveGameState {
   createdAt: string;
   gameCode: string;     // <--- ADDED: Stored in Firebase!
   revealStep?: number;  // <--- RESTORED: Projector podium sync
+  lotteryState?: {
+    min: number;
+    max: number;
+    remainingPool: number[];
+    currentDrawnNumber: number | null;
+  };
 }
 
 export const TEAM_EMOJIS = [

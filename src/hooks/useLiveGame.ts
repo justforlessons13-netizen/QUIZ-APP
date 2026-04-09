@@ -433,6 +433,13 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
         if (currentQ.round === 6 || !nextQ) {
           return { ...prev, phase: 'final-reveal', revealStep: 0 };
         }
+        
+        // --- ADDED: Intercept for Lottery after R2 & R4 ---
+        if (currentQ.round === 2 || currentQ.round === 4) {
+          return { ...prev, phase: 'lottery' };
+        }
+        // --------------------------------------------------
+
         return { ...prev, phase: 'leaderboard' };
       }
 
@@ -454,6 +461,51 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
     const db = getFirestore();
     setDoc(doc(db, 'games', sessionId), newGame);
   }, [sessionId, packId, packName, questions]);
+
+  const advanceFromLottery = useCallback(() => {
+    setGame(prev => ({ ...prev, phase: 'leaderboard' }));
+  }, []);
+
+  const initializeLottery = useCallback((min: number, max: number) => {
+    setGame(prev => {
+      // Create new pool containing numbers from min to max
+      const remainingPool = Array.from({ length: max - min + 1 }, (_, i) => min + i);
+      
+      return {
+        ...prev,
+        lotteryState: {
+          min,
+          max,
+          remainingPool,
+          currentDrawnNumber: null
+        }
+      };
+    });
+  }, []);
+
+  const drawLotteryNumber = useCallback(() => {
+    setGame(prev => {
+      if (!prev.lotteryState || prev.lotteryState.remainingPool.length === 0) {
+        return prev;
+      }
+      
+      const pool = [...prev.lotteryState.remainingPool];
+      const randomIndex = Math.floor(Math.random() * pool.length);
+      const drawnNumber = pool[randomIndex];
+      
+      // Remove drawn number from the pool
+      pool.splice(randomIndex, 1);
+      
+      return {
+        ...prev,
+        lotteryState: {
+          ...prev.lotteryState,
+          remainingPool: pool,
+          currentDrawnNumber: drawnNumber
+        }
+      };
+    });
+  }, []);
 
   const updateRevealStep = useCallback((step: number) => {
     setGame(prev => ({ ...prev, revealStep: step }));
@@ -478,6 +530,9 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
     finalizeGrading,
     advanceFromReveal,
     advanceFromLeaderboard,
+    advanceFromLottery,
+    initializeLottery,
+    drawLotteryNumber,
     resetGame,
     updateRevealStep,
   };

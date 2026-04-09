@@ -15,6 +15,12 @@ interface RevealPhaseProps {
 export function RevealPhase({
   question, playerAnswer, isCorrect, points, isWagered, round, onContinue,
 }: RevealPhaseProps) {
+  const displayMediaUrl = question.answerMediaUrl || question.mediaUrl;
+  const url = displayMediaUrl?.toLowerCase() || '';
+  const isAudio = url.includes('.mp3') || url.includes('.wav') || url.includes('.m4a') || url.includes('.ogg');
+  const isVideo = url.includes('.mp4') || url.includes('.webm') || url.includes('.mov');
+  const isImage = !!displayMediaUrl && !isAudio && !isVideo;
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
@@ -24,8 +30,23 @@ export function RevealPhase({
       className="flex flex-col items-center gap-6 w-full max-w-lg mx-auto px-4"
     >
       {/* Correct Answer */}
-      <div className="text-center">
+      <div className="text-center w-full">
         <p className="text-sm text-muted-foreground mb-2">The correct answer is</p>
+        
+        {displayMediaUrl && (
+          <div className="w-full flex justify-center mb-4">
+            {isAudio && (
+              <audio src={displayMediaUrl} controls className="w-full max-w-[240px]" />
+            )}
+            {isVideo && (
+              <video src={displayMediaUrl} controls playsInline className="max-h-48 rounded-lg object-contain bg-black/20" />
+            )}
+            {isImage && (
+              <img src={displayMediaUrl} alt="Answer Media" className="max-h-48 rounded-lg object-contain bg-black/20" />
+            )}
+          </div>
+        )}
+
         <h2 className="text-3xl font-bold text-primary text-glow-primary">{question.answer}</h2>
       </div>
 
