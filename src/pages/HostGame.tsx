@@ -424,6 +424,7 @@ function LiveGameController({
         onOpenChange={setShowRemote} 
         gameCode={gameCode}
         sessionId={sessionId}
+        packId={packId}
       />
       <HostLeaderboardModal
         open={showLeaderboard}

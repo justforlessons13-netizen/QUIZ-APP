@@ -8,14 +8,16 @@ interface RemoteControlModalProps {
   onOpenChange: (open: boolean) => void;
   gameCode?: string;
   sessionId: string;
+  packId?: string;
 }
 
-export function RemoteControlModal({ open, onOpenChange, gameCode, sessionId }: RemoteControlModalProps) {
+export function RemoteControlModal({ open, onOpenChange, gameCode, sessionId, packId }: RemoteControlModalProps) {
   const [copied, setCopied] = useState(false);
 
   // Fallback to full URL if gameCode isn't available to construct a short link
-  // The host remote uses the same session id
-  const remoteUrl = `${window.location.origin}/host/game?session=${sessionId}&remote=true`;
+  // Fallback to full URL if gameCode isn't available to construct a short link
+  // The host remote uses the same session id and needs the pack id
+  const remoteUrl = `${window.location.origin}/host/game?session=${sessionId}&pack=${packId || ''}&remote=true`;
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(remoteUrl).then(() => {
