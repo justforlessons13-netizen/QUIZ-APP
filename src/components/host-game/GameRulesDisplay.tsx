@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { useEffect, useRef } from 'react';
 
 interface GameRulesDisplayProps {
   rules?: string;
@@ -7,6 +8,8 @@ interface GameRulesDisplayProps {
 }
 
 export function GameRulesDisplay({ rules, projectorMode, onContinue }: GameRulesDisplayProps) {
+  const rulesContainerRef = useRef<HTMLDivElement>(null);
+
   // Convert the single string from your database into an array
   const displayRules = rules && rules.trim().length > 0
     ? rules.split('\n').filter(rule => rule.trim() !== '')
@@ -16,6 +19,24 @@ export function GameRulesDisplay({ rules, projectorMode, onContinue }: GameRules
       "IF TEAMS TIE IN SCORE, THE WINNER IS THE TEAM WITH THE HIGHEST FINAL ROUND SCORE"
     ];
 
+  // Auto-fit text resizing logic
+  useEffect(() => {
+    const container = rulesContainerRef.current;
+    if (!container) return;
+
+    requestAnimationFrame(() => {
+      container.style.fontSize = '28px'; // Max size
+      let currentSize = 28;
+      const minSize = 12;
+
+      // While content overflows the strict container height, shrink it
+      while (container.scrollHeight > container.clientHeight && currentSize > minSize) {
+        currentSize -= 1;
+        container.style.fontSize = `${currentSize}px`;
+      }
+    });
+  }, [displayRules]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -24,7 +45,7 @@ export function GameRulesDisplay({ rules, projectorMode, onContinue }: GameRules
       className="flex flex-col items-center w-full h-[calc(100vh-100px)] max-w-7xl mx-auto px-6 z-10 pt-[8vh]"
     >
       {/* --- Title Section --- */}
-      <div className="text-center flex flex-col items-center">
+      <div className="flex-none text-center flex flex-col items-center">
         <h1
           className="text-[65px] font-bungee text-white leading-none tracking-normal uppercase"
           style={{
@@ -39,16 +60,17 @@ export function GameRulesDisplay({ rules, projectorMode, onContinue }: GameRules
         </p>
       </div>
 
-      {/* --- Rules List (Now matches Round Rules style: Centered & No Circles) --- */}
-      <div className="w-full bg-gradient-to-r from-transparent via-[#d9d9d9]/10 to-transparent py-10 mt-10 mb-8">
-        <div className="flex flex-col items-center gap-5 text-center">
+      {/* --- Rules List (Flexible Container) --- */}
+      <div className="flex-1 w-full flex flex-col justify-center min-h-0 py-4 my-6 bg-gradient-to-r from-transparent via-[#d9d9d9]/10 to-transparent">
+        <div ref={rulesContainerRef} className="flex flex-col items-center justify-center gap-5 text-center w-full h-full overflow-hidden">
           {displayRules.map((rule, index) => (
             <motion.p
               key={index}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.15 + 0.3 }}
-              className="text-[28px] font-sugo uppercase text-[#d9d9d9] tracking-widest leading-relaxed drop-shadow-md"
+              className="font-sugo uppercase text-[#d9d9d9] tracking-widest leading-relaxed drop-shadow-md"
+              style={{ fontSize: 'inherit' }}
             >
               {/* Removes leading numbers or dots automatically */}
               {rule.replace(/^[\s\d.-]+/, '')}
@@ -71,7 +93,7 @@ export function GameRulesDisplay({ rules, projectorMode, onContinue }: GameRules
           // Reduced text to 20px and padding to px-8 py-3 to match the sleek Round Rules button
           className="bg-[#adbbff] text-[#120524] font-bungee text-[20px] px-8 py-3 rounded-md hover:scale-105 transition-transform uppercase flex items-center justify-center mt-auto mb-[8vh] shadow-[0_0_15px_rgba(173,187,255,0.2)]"
         >
-          Here We Go!
+          LET'S START
         </motion.button>
       )}
 

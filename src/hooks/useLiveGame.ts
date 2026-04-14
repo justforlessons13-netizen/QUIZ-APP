@@ -429,6 +429,7 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
         };
       }
 
+      // Automatically branch to Lottery or Leaderboard instead of the Adjustment phase
       if (LEADERBOARD_ROUNDS.includes(currentQ.round)) {
         if (currentQ.round === 6 || !nextQ) {
           return { ...prev, phase: 'final-reveal', revealStep: 0 };
@@ -444,6 +445,33 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
       }
 
       return advanceToNextQuestion(prev);
+    });
+  }, []);
+
+  const adjustTeamScore = useCallback((teamId: string, pointDelta: number, specificRoundIndex?: number) => {
+    setGame(prev => {
+      let roundIndex = specificRoundIndex;
+      if (roundIndex === undefined) {
+        const currentQ = prev.questions[prev.currentQuestionIndex];
+        if (!currentQ) return prev;
+        roundIndex = currentQ.round - 1;
+      }
+
+      const refinedTeams = prev.teams.map(t => {
+        if (t.id !== teamId) return t;
+
+        const newRoundScores = [...t.roundScores];
+        while (newRoundScores.length <= roundIndex!) newRoundScores.push(0);
+        newRoundScores[roundIndex!] += pointDelta;
+
+        return {
+          ...t,
+          score: t.score + pointDelta,
+          roundScores: newRoundScores
+        };
+      });
+
+      return { ...prev, teams: refinedTeams };
     });
   }, []);
 
@@ -529,6 +557,7 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
     setAnswerCorrectness,
     finalizeGrading,
     advanceFromReveal,
+    adjustTeamScore,
     advanceFromLeaderboard,
     advanceFromLottery,
     initializeLottery,

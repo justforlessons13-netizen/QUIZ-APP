@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { getFirestore, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { ArrowLeft, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
@@ -19,9 +19,34 @@ export default function JoinGame() {
 
   // Antigravity standardizes on TEAM_EMOJIS[0] for initial selection
   const [selectedEmoji, setSelectedEmoji] = useState(TEAM_EMOJIS[0]);
-
+  const [takenEmojis, setTakenEmojis] = useState<string[]>([]);
   const [found, setFound] = useState<{ sessionId: string; packName: string } | null>(null);
   const [joined, setJoined] = useState<{ sessionId: string; teamId: string; teamName: string } | null>(null);
+
+  // Live monitor for emojis that are already taken by other teams
+  useEffect(() => {
+    if (!found) return;
+    const db = getFirestore();
+    const gameRef = doc(db, 'games', found.sessionId);
+    
+    const unsubscribe = onSnapshot(gameRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const state = docSnap.data() as LiveGameState;
+        const taken = state.teams.map(t => t.emoji);
+        setTakenEmojis(taken);
+        
+        // If the current selection was just taken by someone else, auto-select a free one
+        setSelectedEmoji(current => {
+          if (taken.includes(current)) {
+            return TEAM_EMOJIS.find(e => !taken.includes(e)) || current;
+          }
+          return current;
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [found]);
 
   const handleLookup = async () => {
     const db = getFirestore();
@@ -175,18 +200,26 @@ export default function JoinGame() {
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground text-center font-medium">Choose your avatar</p>
                 <div className="flex flex-wrap justify-center gap-3 w-full">
-                  {TEAM_EMOJIS.map(e => (
-                    <button
-                      key={e}
-                      onClick={() => setSelectedEmoji(e)}
-                      className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all ${selectedEmoji === e
-                        ? 'bg-primary/20 border-2 border-primary scale-110 shadow-[0_0_15px_rgba(var(--primary),0.3)]'
-                        : 'bg-card border border-border hover:border-primary/40'
-                        }`}
-                    >
-                      <Emoji3D emoji={e} size="sm" />
-                    </button>
-                  ))}
+                  {TEAM_EMOJIS.map(e => {
+                    const isTaken = takenEmojis.includes(e);
+                    return (
+                      <button
+                        key={e}
+                        onClick={() => !isTaken && setSelectedEmoji(e)}
+                        disabled={isTaken}
+                        className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all ${
+                          isTaken 
+                            ? 'bg-card/30 border border-border/20 opacity-30 cursor-not-allowed grayscale' 
+                            : selectedEmoji === e
+                              ? 'bg-primary/20 border-2 border-primary scale-110 shadow-[0_0_15px_rgba(var(--primary),0.3)]'
+                              : 'bg-card border border-border hover:border-primary/40'
+                          }`}
+                        title={isTaken ? "Already taken" : undefined}
+                      >
+                        <Emoji3D emoji={e} size="sm" />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

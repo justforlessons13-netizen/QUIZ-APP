@@ -33,6 +33,7 @@ export type HostGamePhase =
   | 'answer-collection'
   | 'grading'
   | 'reveal'
+  | 'round-scores-adjustment'
   | 'lottery'
   | 'leaderboard'
   | 'final-reveal'

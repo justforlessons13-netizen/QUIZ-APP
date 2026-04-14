@@ -16,26 +16,22 @@ interface QuestionDisplayProps {
   onCollectAnswers: () => void;
   projectorMode?: boolean;
   timerActive?: boolean;
+  packName?: string; // ← pack name shown in top center
 }
 
 // ─── Animated Waveform ────────────────────────────────────────────────────────
 
 const AnimatedWaveform = ({ isActivated }: { isActivated: boolean }) => {
   const BAR_COUNT = 48;
-
-  // Pre-generate stable random heights so they don't shift on re-render
   const baseHeights = useRef(
     Array.from({ length: BAR_COUNT }, () => 18 + Math.random() * 28)
   );
 
   return (
     <div className="flex items-center justify-center gap-[5px] w-full max-w-[900px] h-[180px]">
-      {/* Mic icon */}
       <div className="flex-shrink-0 w-[68px] h-[68px] bg-[#d9d9d9] rounded-full flex items-center justify-center mr-5 shadow-lg">
         <Mic className="text-[#120524] w-[34px] h-[34px]" />
       </div>
-
-      {/* Bars */}
       {baseHeights.current.map((baseH, i) => (
         <motion.div
           key={i}
@@ -47,23 +43,14 @@ const AnimatedWaveform = ({ isActivated }: { isActivated: boolean }) => {
           animate={
             isActivated
               ? {
-                height: [
-                  `${baseH * 0.4}%`,
-                  `${baseH * 0.4 + Math.random() * 55}%`,
-                  `${baseH * 0.4}%`,
-                ],
+                height: [`${baseH * 0.4}%`, `${baseH * 0.4 + Math.random() * 55}%`, `${baseH * 0.4}%`],
                 opacity: 1,
               }
               : { height: `${baseH}%`, opacity: 0.35 }
           }
           transition={
             isActivated
-              ? {
-                duration: 0.45 + Math.random() * 0.45,
-                repeat: Infinity,
-                ease: 'easeInOut',
-                delay: i * 0.025,
-              }
+              ? { duration: 0.45 + Math.random() * 0.45, repeat: Infinity, ease: 'easeInOut', delay: i * 0.025 }
               : { duration: 0.4 }
           }
         />
@@ -72,7 +59,7 @@ const AnimatedWaveform = ({ isActivated }: { isActivated: boolean }) => {
   );
 };
 
-// ─── Gradient text style (Sugo Display grey gradient) ────────────────────────
+// ─── Gradient text style ──────────────────────────────────────────────────────
 
 const gradientTextStyle: React.CSSProperties = {
   background: 'linear-gradient(180deg, #e8e8e8 0%, #9a9a9a 60%, #6b6b6b 100%)',
@@ -80,6 +67,30 @@ const gradientTextStyle: React.CSSProperties = {
   WebkitTextFillColor: 'transparent',
   backgroundClip: 'text',
 };
+
+// ─── Auto-fit hook ────────────────────────────────────────────────────────────
+
+function useAutoFitText(
+  textRef: React.RefObject<HTMLHeadingElement>,
+  containerRef: React.RefObject<HTMLDivElement>,
+  dep: string,
+  defaultSize: number,
+  minSize = 22
+) {
+  useEffect(() => {
+    const el = textRef.current;
+    const container = containerRef.current;
+    if (!el || !container) return;
+    requestAnimationFrame(() => {
+      el.style.fontSize = `${defaultSize}px`;
+      let size = defaultSize;
+      while (el.scrollHeight > container.clientHeight && size > minSize) {
+        size -= 1;
+        el.style.fontSize = `${size}px`;
+      }
+    });
+  }, [dep]);
+}
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -93,16 +104,13 @@ export function QuestionDisplay({
   projectorMode,
   timerActive,
   onActivate,
+  packName,
 }: QuestionDisplayProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const textRef = useRef<HTMLHeadingElement>(null);
+  const textContainerRef = useRef<HTMLDivElement>(null);
   const [isActivated, setIsActivated] = useState(false);
-
-  useEffect(() => {
-    if (timerActive || timeLeft < maxTime) {
-      setIsActivated(true);
-    }
-  }, [timerActive, timeLeft, maxTime]);
 
   const url = question.mediaUrl?.toLowerCase() || '';
   const isAudio = url.includes('.mp3') || url.includes('.wav') || url.includes('.m4a') || url.includes('.ogg');
@@ -111,17 +119,24 @@ export function QuestionDisplay({
   const hasMedia = !!question.mediaUrl;
   const shouldLoop = maxTime <= 45;
 
+  const defaultFontSize = !hasMedia ? 52 : 38;
+
+  useAutoFitText(textRef, textContainerRef, question.text, defaultFontSize, 22);
+
+  useEffect(() => {
+    if (timerActive || timeLeft < maxTime) setIsActivated(true);
+  }, [timerActive, timeLeft, maxTime]);
+
   const isLowTime = isActivated && timeLeft <= 5 && timeLeft > 0;
 
-  // Play media on activate
   useEffect(() => {
     if (!isActivated || !hasMedia) return;
     if (isAudio && audioRef.current) {
-      audioRef.current.muted = !projectorMode;
+      audioRef.current.muted = !!projectorMode;
       audioRef.current.play().catch(() => { });
     }
     if (isVideo && videoRef.current) {
-      videoRef.current.muted = !projectorMode;
+      videoRef.current.muted = !!projectorMode;
       videoRef.current.play().catch(() => { });
     }
   }, [isActivated, isAudio, isVideo, hasMedia, projectorMode]);
@@ -142,9 +157,9 @@ export function QuestionDisplay({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="relative flex flex-col items-center w-full h-[calc(100dvh-100px)] md:h-[calc(100vh-100px)] max-w-[1920px] mx-auto px-8 md:px-16 z-10 pt-[5vh]"
+      className="relative flex flex-col w-full h-[calc(100dvh-100px)] md:h-[calc(100vh-100px)] max-w-[1920px] mx-auto px-6 md:px-12 z-10 pt-[3vh] pb-[90px]"
     >
-      {/* Hidden timer — handles tick sounds only */}
+      {/* Hidden timer — tick sounds only */}
       {isActivated && (
         <div className="hidden">
           <GameTimer timeLeft={timeLeft} maxTime={maxTime} />
@@ -152,54 +167,79 @@ export function QuestionDisplay({
       )}
 
       {/* ── TOP BAR ── */}
-      <div className="w-full flex justify-between items-start max-w-[1700px]">
-        {/* Round / Question badge */}
-        <div className="flex flex-col items-center gap-[5px]">
-          <span className="font-bungee text-[22px] text-[#adbbff] tracking-wider leading-none">
-            R{round} / Q{questionInRound}
+      {/* Three columns: R/Q badge | pack name | timer — all with underline */}
+      <div className="w-full grid grid-cols-3 items-start flex-none mb-6">
+
+        {/* Left — R1 / Q2 underlined */}
+        <div className="flex items-start">
+          <span
+            className="font-bungee text-[20px] text-[#adbbff] tracking-wider leading-none"
+            style={{ textDecoration: 'underline', textDecorationColor: 'rgba(173,187,255,0.7)', textUnderlineOffset: '6px', textDecorationThickness: '3px' }}
+          >
+            R{round} /&nbsp;Q{questionInRound}
           </span>
-          <div className="w-full h-[3px] bg-[#adbbff] rounded-full opacity-70" />
         </div>
 
-        {/* Timer */}
-        <div className="flex flex-col items-center gap-[5px]">
+        {/* Center — Pack name */}
+        <div className="flex items-start justify-center">
+          <span className="font-bungee text-[14px] text-[#adbbff]/70 tracking-widest leading-none uppercase text-center">
+            {packName || ''}
+          </span>
+        </div>
+
+        {/* Right — Timer underlined */}
+        <div className="flex items-start justify-end">
           <span
-            className={`font-bungee text-[22px] tracking-wider leading-none transition-colors duration-300 ${isLowTime ? 'text-red-400 animate-pulse' : 'text-[#adbbff]'
+            className={`font-bungee text-[20px] tracking-wider leading-none transition-colors duration-300 ${isLowTime ? 'text-red-400 animate-pulse' : 'text-[#adbbff]'
               }`}
+            style={{
+              textDecoration: 'underline',
+              textDecorationColor: isLowTime ? 'rgba(248,113,113,0.7)' : 'rgba(173,187,255,0.7)',
+              textUnderlineOffset: '6px',
+              textDecorationThickness: '3px',
+            }}
           >
             {formatTime(isActivated ? timeLeft : maxTime)}
           </span>
-          <div
-            className={`w-full h-[3px] rounded-full opacity-70 transition-colors duration-300 ${isLowTime ? 'bg-red-400' : 'bg-[#adbbff]'
-              }`}
-          />
         </div>
       </div>
 
-      {/* ── MAIN CONTENT ── */}
-      <div className="flex-1 w-full max-w-[1585px] overflow-y-auto no-scrollbar min-h-0 pb-28 md:pb-0 flex flex-col">
-        <div className="m-auto flex flex-col items-center justify-center w-full gap-6 py-4">
-
-        {/* TEXT ONLY — big centered question */}
-        {!hasMedia && (
-          <h2
-            className="font-sugo text-[42px] md:text-[52px] uppercase tracking-widest text-center leading-snug drop-shadow-md"
-            style={gradientTextStyle}
+      {/* ── TEXT ONLY — vertically centered ── */}
+      {!hasMedia && (
+        <div className="flex-1 min-h-0 flex items-center justify-center">
+          <div
+            ref={textContainerRef}
+            className="w-full text-center"
+            style={{ maxHeight: '70vh' }}
           >
-            {question.text}
-          </h2>
-        )}
-
-        {/* AUDIO question */}
-        {hasMedia && isAudio && (
-          <>
             <h2
-              className="font-sugo text-[38px] md:text-[46px] uppercase tracking-widest text-center leading-snug drop-shadow-md"
-              style={gradientTextStyle}
+              ref={textRef}
+              className="font-sugo uppercase tracking-widest leading-snug drop-shadow-md w-full"
+              style={{ fontSize: `${defaultFontSize}px`, ...gradientTextStyle }}
             >
               {question.text}
             </h2>
+          </div>
+        </div>
+      )}
 
+      {/* ── AUDIO — question text near top, waveform centered ── */}
+      {hasMedia && isAudio && (
+        <>
+          <div
+            ref={textContainerRef}
+            className="w-full flex-none text-center mb-4"
+            style={{ maxHeight: '22vh' }}
+          >
+            <h2
+              ref={textRef}
+              className="font-sugo uppercase tracking-widest leading-snug drop-shadow-md w-full"
+              style={{ fontSize: `${defaultFontSize}px`, ...gradientTextStyle }}
+            >
+              {question.text}
+            </h2>
+          </div>
+          <div className="flex-1 min-h-0 flex items-center justify-center">
             <motion.div
               className="w-full flex justify-center"
               animate={{ filter: isActivated ? 'none' : 'grayscale(1) blur(2px)', opacity: isActivated ? 1 : 0.4 }}
@@ -207,87 +247,85 @@ export function QuestionDisplay({
             >
               <AnimatedWaveform isActivated={isActivated} />
             </motion.div>
+          </div>
+          <audio ref={audioRef} src={question.mediaUrl} loop={shouldLoop} />
+        </>
+      )}
 
-            <audio ref={audioRef} src={question.mediaUrl} loop={shouldLoop} />
-          </>
-        )}
-
-        {/* IMAGE question */}
-        {hasMedia && isImage && (
-          <>
+      {/* ── IMAGE — question text near top, image fills remaining space ── */}
+      {hasMedia && isImage && (
+        <>
+          <div
+            ref={textContainerRef}
+            className="w-full flex-none text-center mb-3"
+            style={{ maxHeight: '22vh' }}
+          >
             <h2
-              className="font-sugo text-[32px] md:text-[40px] uppercase tracking-widest text-center leading-snug drop-shadow-md"
-              style={gradientTextStyle}
+              ref={textRef}
+              className="font-sugo uppercase tracking-widest leading-snug drop-shadow-md w-full"
+              style={{ fontSize: `${defaultFontSize}px`, ...gradientTextStyle }}
             >
               {question.text}
             </h2>
+          </div>
+          <motion.div
+            className="flex-1 min-h-0 w-full overflow-hidden rounded-none"
+            animate={{ filter: isActivated ? 'none' : 'grayscale(1) blur(8px)', opacity: isActivated ? 1 : 0.45 }}
+            transition={{ duration: 0.7 }}
+          >
+            <img src={question.mediaUrl} alt="Visual clue" className="w-full h-full object-contain" />
+          </motion.div>
+        </>
+      )}
 
-            <motion.div
-              className="w-full max-w-[1156px] overflow-hidden rounded-sm"
-              style={{ height: '52vh', minHeight: 280 }}
-              animate={{ filter: isActivated ? 'none' : 'grayscale(1) blur(8px)', opacity: isActivated ? 1 : 0.45 }}
-              transition={{ duration: 0.7 }}
-            >
-              <img
-                src={question.mediaUrl}
-                alt="Visual clue"
-                className="w-full h-full object-contain"
-              />
-            </motion.div>
-          </>
-        )}
-
-        {/* VIDEO question */}
-        {hasMedia && isVideo && (
-          <>
+      {/* ── VIDEO — same as image ── */}
+      {hasMedia && isVideo && (
+        <>
+          <div
+            ref={textContainerRef}
+            className="w-full flex-none text-center mb-3"
+            style={{ maxHeight: '22vh' }}
+          >
             <h2
-              className="font-sugo text-[32px] md:text-[40px] uppercase tracking-widest text-center leading-snug drop-shadow-md"
-              style={gradientTextStyle}
+              ref={textRef}
+              className="font-sugo uppercase tracking-widest leading-snug drop-shadow-md w-full"
+              style={{ fontSize: `${defaultFontSize}px`, ...gradientTextStyle }}
             >
               {question.text}
             </h2>
+          </div>
+          <motion.div
+            className="flex-1 min-h-0 w-full overflow-hidden rounded-none bg-black/20"
+            animate={{ filter: isActivated ? 'none' : 'grayscale(1) blur(8px)', opacity: isActivated ? 1 : 0.45 }}
+            transition={{ duration: 0.7 }}
+          >
+            <video ref={videoRef} src={question.mediaUrl} loop={shouldLoop} playsInline className="w-full h-full object-contain" />
+          </motion.div>
+        </>
+      )}
 
-            <motion.div
-              className="w-full max-w-[1156px] overflow-hidden rounded-sm bg-black/20"
-              style={{ height: '52vh', minHeight: 280 }}
-              animate={{ filter: isActivated ? 'none' : 'grayscale(1) blur(8px)', opacity: isActivated ? 1 : 0.45 }}
-              transition={{ duration: 0.7 }}
-            >
-              <video
-                ref={videoRef}
-                src={question.mediaUrl}
-                loop={shouldLoop}
-                playsInline
-                className="w-full h-full object-contain"
-              />
-            </motion.div>
-          </>
-        )}
-        </div>
-      </div>
-
-      {/* ── HOST BUTTONS ── */}
+      {/* ── HOST BUTTONS — exact relative Y-alignment to global icons ── */}
       {!projectorMode && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="fixed bottom-6 left-0 right-0 flex justify-center z-50 px-4 md:relative md:bottom-auto md:mt-auto md:mb-6"
+          className="fixed bottom-[38px] left-1/2 -translate-x-1/2 z-[60]"
         >
           {!isActivated ? (
             <button
               onClick={handleActivate}
-              className="bg-[#adbbff] text-[#120524] font-bungee text-[18px] px-8 py-2.5 rounded-md hover:scale-105 active:scale-95 transition-transform uppercase shadow-[0_0_20px_rgba(173,187,255,0.25)] tracking-wide"
+              className="bg-[#adbbff] text-[#120524] font-bungee text-[15px] px-6 py-1.5 rounded-[10px] hover:scale-105 active:scale-95 transition-transform uppercase tracking-wider"
             >
               Start Music &amp; Timer
             </button>
           ) : (
             <button
               onClick={onCollectAnswers}
-              className="bg-[#adbbff] text-[#120524] font-bungee text-[18px] pl-7 pr-5 py-2.5 rounded-md hover:scale-105 active:scale-95 transition-transform uppercase shadow-[0_0_20px_rgba(173,187,255,0.25)] tracking-wide flex items-center gap-2"
+              className="bg-[#adbbff] text-[#120524] font-bungee text-[15px] pl-5 pr-4 py-1.5 rounded-[10px] hover:scale-105 active:scale-95 transition-transform uppercase tracking-wider flex items-center gap-2"
             >
               Collect Answers
-              <ChevronRightCircle className="w-5 h-5 fill-[#120524] text-[#adbbff]" />
+              <ChevronRightCircle className="w-4 h-4 fill-[#120524] text-[#adbbff]" />
             </button>
           )}
         </motion.div>

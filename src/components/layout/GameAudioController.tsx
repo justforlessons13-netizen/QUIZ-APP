@@ -12,6 +12,7 @@ const MUSIC_MAP: Record<string, string> = {
   'question': '/assets/music-question.mp3',
   'round-rules': '/assets/music-reveal.mp3',
   'reveal': '',
+  'round-scores-adjustment': '/assets/music-setup.mp3',
 };
 
 export function GameAudioController({
@@ -142,49 +143,35 @@ export function GameAudioController({
     <>
       <audio ref={audioRef} loop onError={(e) => console.error("Audio tag error:", e)} />
 
-      {/* --- RETRO ARCADE FOOTER --- */}
-      <footer className="fixed bottom-6 right-8 z-50 flex items-center gap-4 opacity-80 transition-opacity hover:opacity-100 font-sugo">
-
+      {/* --- AUDIO CONTROLS (NO TEXT) --- */}
+      <footer className="fixed bottom-[44px] right-[55px] z-50 flex items-center gap-0 opacity-80 transition-opacity hover:opacity-100 font-sugo">
         {/* Play/Pause Button */}
         <button
           onClick={togglePlay}
           disabled={isLoading || !track}
-          className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center hover:bg-arcade-neon hover:text-arcade-bg transition-colors text-white disabled:opacity-50 disabled:hover:bg-white/20 disabled:hover:text-white"
+          className="flex items-center justify-center transition-all disabled:opacity-50 opacity-80 hover:opacity-100 hover:scale-110 active:scale-95"
         >
           {isLoading ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <Loader2 className="h-[20px] w-[20px] animate-spin text-white" />
           ) : error ? (
-            <AlertCircle className="w-4 h-4" />
+            <AlertCircle className="h-[20px] w-[20px] text-white" />
           ) : isPlaying ? (
-            <Pause className="w-4 h-4 fill-current" />
+            <img src="/pause.svg" alt="Pause" className="h-[20px] w-auto pointer-events-none" />
           ) : (
-            <Play className="w-4 h-4 fill-current ml-0.5" />
+            <img src="/play.svg" alt="Play" className="h-[20px] w-auto pointer-events-none" />
           )}
         </button>
-
-        {/* Track Info (Now Left-Aligned) */}
-        <div className="flex flex-col items-start gap-1 text-left text-xs md:text-sm tracking-widest uppercase text-white">
-          <div className="opacity-60 leading-none mt-1">
-            {isLoading ? 'LOADING...' :
-              !track ? 'SILENCE' :
-                !isPlaying ? 'PAUSED' :
-                  'NOW PLAYING'}
-          </div>
-          <div className="text-arcade-neon drop-shadow-arcade-text leading-none">
-            {error || (track ? track.split('/').pop()?.replace('.mp3', '') : 'NO AUDIO')}
-          </div>
-        </div>
 
         {/* Mute/Volume Button */}
         <button
           onClick={toggleMute}
           disabled={!track}
-          className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center ml-2 hover:bg-arcade-neon hover:text-arcade-bg transition-colors text-white disabled:opacity-50 disabled:hover:bg-white/20 disabled:hover:text-white"
+          className="flex items-center justify-center transition-all disabled:opacity-50 opacity-80 hover:opacity-100 hover:scale-110 active:scale-95"
         >
           {isMuted ? (
-            <VolumeX className="w-4 h-4" />
+            <img src="/mute.svg" alt="Muted" className="h-[20px] w-auto pointer-events-none" />
           ) : (
-            <Volume2 className="w-4 h-4" />
+            <img src="/volume.svg" alt="Volume" className="h-[20px] w-auto pointer-events-none" />
           )}
         </button>
       </footer>

@@ -5,7 +5,7 @@ import { LiveGameState, LiveTeam } from '@/types/live-game';
 import { Question } from '@/types/game';
 import { Button } from '@/components/ui/button';
 import { Emoji3D } from '@/components/ui/Emoji3D';
-import { getFirestore, doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, onSnapshot, updateDoc, runTransaction } from 'firebase/firestore';
 
 interface PlayerGameProps {
   sessionId: string;
@@ -65,22 +65,38 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
         const gameRef = doc(db, 'games', sessionId);
 
         try {
-          const currentRoundIndex = game.rounds.findIndex(r => r.questionIndex === game.currentQuestionIndex);
-          if (currentRoundIndex === -1) return;
+          await runTransaction(db, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) return;
 
-          const newRounds = [...game.rounds];
-          const currentRound = { ...newRounds[currentRoundIndex] };
+            const data = gameDoc.data() as LiveGameState;
+            const currentRoundIndex = data.rounds.findIndex(r => r.questionIndex === data.currentQuestionIndex);
+            if (currentRoundIndex === -1) return;
 
-          // Update the specific team's answer to flag cheating
-          currentRound.answers = currentRound.answers.map(a =>
-            a.teamId === teamId
-              ? { ...a, hasCheated: true, isCorrect: false, pointsAwarded: 0 }
-              : a
-          );
-          newRounds[currentRoundIndex] = currentRound;
+            const newRounds = [...data.rounds];
+            const currentRound = { ...newRounds[currentRoundIndex] };
 
-          // Update database and lock the local UI
-          await updateDoc(gameRef, { rounds: newRounds });
+            const teamAnswerExists = currentRound.answers.some(a => a.teamId === teamId);
+            let newAnswers;
+            if (teamAnswerExists) {
+              newAnswers = currentRound.answers.map(a =>
+                a.teamId === teamId
+                  ? { ...a, hasCheated: true, isCorrect: false, pointsAwarded: 0 }
+                  : a
+              );
+            } else {
+              newAnswers = [
+                ...currentRound.answers,
+                { teamId, answer: '', hasCheated: true, isCorrect: false, isWagered: false, pointsAwarded: 0 }
+              ];
+            }
+
+            currentRound.answers = newAnswers;
+            newRounds[currentRoundIndex] = currentRound;
+
+            transaction.update(gameRef, { rounds: newRounds });
+          });
+          
           setSubmitted(true);
         } catch (err) {
           console.error("Anti-cheat flag failed:", err);
@@ -90,7 +106,7 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [game?.phase, game?.currentQuestionIndex, game?.rounds, sessionId, teamId, submitted]);
+  }, [game?.phase, game?.currentQuestionIndex, sessionId, teamId, submitted]);
 
   // Reset answer state when question changes
   useEffect(() => {
@@ -108,16 +124,36 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
     const gameRef = doc(db, 'games', sessionId);
 
     try {
-      const currentRoundIndex = game.rounds.findIndex(r => r.questionIndex === game.currentQuestionIndex);
-      if (currentRoundIndex === -1) return;
+      await runTransaction(db, async (transaction) => {
+        const gameDoc = await transaction.get(gameRef);
+        if (!gameDoc.exists()) return;
 
-      const newRounds = [...game.rounds];
-      const newAnswers = newRounds[currentRoundIndex].answers.map(a =>
-        a.teamId === teamId ? { ...a, answer: myAnswer.trim(), isWagered: myWager } : a
-      );
-      newRounds[currentRoundIndex].answers = newAnswers;
+        const data = gameDoc.data() as LiveGameState;
+        const currentRoundIndex = data.rounds.findIndex(r => r.questionIndex === data.currentQuestionIndex);
+        if (currentRoundIndex === -1) return;
 
-      await updateDoc(gameRef, { rounds: newRounds });
+        const newRounds = [...data.rounds];
+        const currentRound = { ...newRounds[currentRoundIndex] };
+
+        const teamAnswerExists = currentRound.answers.some(a => a.teamId === teamId);
+        let newAnswers;
+        if (teamAnswerExists) {
+          newAnswers = currentRound.answers.map(a =>
+            a.teamId === teamId ? { ...a, answer: myAnswer.trim(), isWagered: myWager } : a
+          );
+        } else {
+          newAnswers = [
+            ...currentRound.answers,
+            { teamId, answer: myAnswer.trim(), isCorrect: null, isWagered: myWager, pointsAwarded: 0 }
+          ];
+        }
+
+        currentRound.answers = newAnswers;
+        newRounds[currentRoundIndex] = currentRound;
+
+        transaction.update(gameRef, { rounds: newRounds });
+      });
+
       setSubmitted(true);
     } catch (err) {
       console.error("Failed to submit answer: ", err);
@@ -556,6 +592,21 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
             Better luck next time! 🍀
           </p>
         )}
+      </motion.div>
+    );
+  }
+
+  // Round Scores Adjustment Phase
+  if (game.phase === 'round-scores-adjustment') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="flex flex-col items-center gap-4 p-8 text-center h-[80vh] justify-center"
+      >
+        <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
+        <h2 className="text-2xl font-bold text-foreground">Score Verification</h2>
+        <p className="text-muted-foreground">The host is finalizing scores for Round {game.currentRound}...</p>
       </motion.div>
     );
   }

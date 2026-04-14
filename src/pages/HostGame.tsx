@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, RotateCcw, Maximize, Minimize } from 'lucide-react';
+import { ArrowLeft, RotateCcw, Maximize, Minimize, Home, MonitorUp, Smartphone, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLiveGame } from '@/hooks/useLiveGame';
 import { QuestionPack } from '@/types/host';
@@ -16,16 +16,20 @@ import { GameRulesDisplay } from '@/components/host-game/GameRulesDisplay';
 import { RoundRulesDisplay } from '@/components/host-game/RoundRulesDisplay';
 import { GamePhaseBackground } from '@/components/layout/GamePhaseBackground';
 import { GameAudioController } from '@/components/layout/GameAudioController';
+import { RemoteControlModal } from '@/components/host-game/RemoteControlModal';
+import { HostLeaderboardModal } from '@/components/host-game/HostLeaderboardModal';
 
 function LiveGameController({
   pack,
-  sessionId
+  sessionId,
+  initialProjectorMode = false
 }: {
   pack: QuestionPack,
-  sessionId: string
+  sessionId: string,
+  initialProjectorMode?: boolean
 }) {
   const navigate = useNavigate();
-  const [projectorMode, setProjectorMode] = useState(false);
+  const [projectorMode, setProjectorMode] = useState(initialProjectorMode);
 
   const toggleProjectorMode = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -34,6 +38,34 @@ function LiveGameController({
       document.exitFullscreen?.().then(() => setProjectorMode(false)).catch(() => setProjectorMode(false));
     }
   }, []);
+
+  const [showRemote, setShowRemote] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+
+  const openProjectorWindow = async () => {
+    const projUrl = window.location.href + (window.location.href.includes('?') ? '&' : '?') + 'projector=true';
+    
+    try {
+      if ('getScreenDetails' in window) {
+        const screenDetails = await (window as any).getScreenDetails();
+        const externalScreen = screenDetails.screens.find((s: any) => s.isExtended);
+        
+        if (externalScreen) {
+          window.open(
+            projUrl,
+            'QGame_Projector',
+            `left=${externalScreen.availLeft},top=${externalScreen.availTop},width=${externalScreen.availWidth},height=${externalScreen.availHeight},popup=1`
+          );
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Screen Details API not available or permission denied", err);
+    }
+    
+    // Fallback: specifically open as a popup window if we couldn't detect the extended screen
+    window.open(projUrl, 'QGameProjector', 'popup=yes,width=1280,height=720,menubar=no,toolbar=no,location=no,status=no');
+  };
 
   useEffect(() => {
     const onFSChange = () => {
@@ -65,6 +97,7 @@ function LiveGameController({
     drawLotteryNumber,
     resetGame,
     updateRevealStep,
+    adjustTeamScore,
   } = useLiveGame(
     sessionId,
     pack.id,
@@ -118,7 +151,7 @@ function LiveGameController({
       />
 
       {/* FIXED HEADER: Now matches your Canva mockups perfectly */}
-      {!projectorMode && (
+      {!projectorMode && game.phase !== 'question' && (
         <header className="relative z-20 flex justify-between items-center w-full p-6 text-[#adbbff] font-bungee text-sm md:text-base tracking-wider transition-all">
           <button
             onClick={() => navigate('/host')}
@@ -188,6 +221,7 @@ function LiveGameController({
             <RoundRulesDisplay
               key={`round-rules-${game.currentRound}`}
               round={game.currentRound}
+              roundName={pack.roundNames?.[game.currentRound]}
               rules={pack.roundRules?.[game.currentRound]}
               projectorMode={projectorMode}
               onStartRound={startRound}
@@ -208,6 +242,11 @@ function LiveGameController({
               onCollectAnswers={finishQuestion}
               projectorMode={projectorMode}
               timerActive={game.timerActive}
+              packName={pack.name}
+              sessionId={sessionId}
+              gameCode={gameCode}
+              game={game}
+              onAdjustScore={adjustTeamScore}
             />
           )}
 
@@ -319,6 +358,58 @@ function LiveGameController({
           )}
         </AnimatePresence>
       </main>
+
+      {/* ── GLOBAL HOST BOTTOM ACTIONS ── */}
+      {!projectorMode && (
+        <div className="fixed bottom-[44px] left-[55px] z-[60] flex items-center pointer-events-none">
+          <div className="flex items-center gap-0 pointer-events-auto">
+             <button
+               onClick={() => setPhase('team-setup')}
+               className="hover:scale-110 active:scale-95 transition-all opacity-60 hover:opacity-100"
+               title="Home (Lobby)"
+             >
+               <img src="/home.svg" alt="Home" className="h-[20px] w-auto pointer-events-none" />
+             </button>
+             <button
+               onClick={openProjectorWindow}
+               className="hover:scale-110 active:scale-95 transition-all opacity-60 hover:opacity-100"
+               title="Projector Mode"
+             >
+               <img src="/project.svg" alt="Projector Mode" className="h-[20px] w-auto pointer-events-none" />
+             </button>
+             <button
+               onClick={() => setShowRemote(true)}
+               className="hover:scale-110 active:scale-95 transition-all opacity-60 hover:opacity-100"
+               title="Remote Control"
+             >
+               <img src="/remote.svg" alt="Remote" className="h-[20px] w-auto pointer-events-none" />
+             </button>
+             <button
+               onClick={() => setShowLeaderboard(true)}
+               className="hover:scale-110 active:scale-95 transition-all opacity-60 hover:opacity-100"
+               title="Leaderboard"
+             >
+               <img src="/leaderboard.svg" alt="Leaderboard" className="h-[20px] w-auto pointer-events-none" />
+             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modals */}
+      <RemoteControlModal 
+        open={showRemote} 
+        onOpenChange={setShowRemote} 
+        gameCode={gameCode}
+        sessionId={sessionId}
+      />
+      <HostLeaderboardModal
+        open={showLeaderboard}
+        onOpenChange={setShowLeaderboard}
+        teams={game.teams}
+        currentRound={game.currentRound}
+        onAdjustScore={adjustTeamScore}
+      />
+
     </div>
   );
 }
@@ -377,6 +468,7 @@ export default function HostGame() {
     <LiveGameController
       pack={pack}
       sessionId={sessionId}
+      initialProjectorMode={searchParams.get('projector') === 'true'}
     />
   );
 }
