@@ -132,11 +132,11 @@ export function QuestionDisplay({
   useEffect(() => {
     if (!isActivated || !hasMedia) return;
     if (isAudio && audioRef.current) {
-      audioRef.current.muted = !!projectorMode;
+      audioRef.current.muted = !projectorMode;
       audioRef.current.play().catch(() => { });
     }
     if (isVideo && videoRef.current) {
-      videoRef.current.muted = !!projectorMode;
+      videoRef.current.muted = !projectorMode;
       videoRef.current.play().catch(() => { });
     }
   }, [isActivated, isAudio, isVideo, hasMedia, projectorMode]);

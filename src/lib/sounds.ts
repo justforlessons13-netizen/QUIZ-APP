@@ -11,9 +11,26 @@ function getCtx(): AudioContext {
   return ctx;
 }
 
+/** 
+ * Unlocks the WebAudio API by deliberately forcing an empty buffer play inside a user gesture 
+ */
+export function unlockWebAudio() {
+  const c = getCtx();
+  if (c.state === 'suspended') c.resume();
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  g.gain.value = 0; // Pure silence
+  osc.connect(g).connect(c.destination);
+  osc.start();
+  osc.stop(c.currentTime + 0.1);
+}
+
 /* ── helpers ── */
 
+const isProjector = () => typeof window !== 'undefined' && window.location.search.includes('projector=true');
+
 function playTone(freq: number, duration: number, type: OscillatorType = 'sine', gain = 0.15) {
+  if (!isProjector()) return;
   const c = getCtx();
   const osc = c.createOscillator();
   const g = c.createGain();
@@ -27,6 +44,7 @@ function playTone(freq: number, duration: number, type: OscillatorType = 'sine',
 }
 
 function playNoise(duration: number, gain = 0.08) {
+  if (!isProjector()) return;
   const c = getCtx();
   const bufferSize = c.sampleRate * duration;
   const buffer = c.createBuffer(1, bufferSize, c.sampleRate);

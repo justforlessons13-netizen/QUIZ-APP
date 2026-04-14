@@ -20,13 +20,15 @@ export function GameAudioController({
   timerActive = false,
   hasMediaContent = false,
   volume = 0.3,
-  forceMuted = false
+  forceMuted = false,
+  hideControls = false
 }: {
   phase: HostGamePhase,
   timerActive?: boolean,
   hasMediaContent?: boolean,
   volume?: number,
-  forceMuted?: boolean
+  forceMuted?: boolean,
+  hideControls?: boolean
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [track, setTrack] = useState('');
@@ -144,7 +146,8 @@ export function GameAudioController({
       <audio ref={audioRef} loop onError={(e) => console.error("Audio tag error:", e)} />
 
       {/* --- AUDIO CONTROLS (NO TEXT) --- */}
-      <footer className="fixed bottom-[44px] right-[55px] z-50 flex items-center gap-0 opacity-80 transition-opacity hover:opacity-100 font-sugo">
+      {!hideControls && (
+        <footer className="fixed bottom-[44px] right-[55px] z-50 flex items-center gap-0 opacity-80 transition-opacity hover:opacity-100 font-sugo">
         {/* Play/Pause Button */}
         <button
           onClick={togglePlay}
@@ -175,6 +178,7 @@ export function GameAudioController({
           )}
         </button>
       </footer>
+      )}
     </>
   );
 }

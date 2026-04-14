@@ -85,11 +85,7 @@ export function GameRulesDisplay({ rules, projectorMode, onContinue }: GameRules
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1 }}
-          onClick={() => {
-            const audio = new Audio('/assets/here-we-go.mp3');
-            audio.play().catch(() => {});
-            onContinue();
-          }}
+          onClick={() => onContinue()}
           // Reduced text to 20px and padding to px-8 py-3 to match the sleek Round Rules button
           className="bg-[#adbbff] text-[#120524] font-bungee text-[20px] px-8 py-3 rounded-md hover:scale-105 transition-transform uppercase flex items-center justify-center mt-auto mb-[8vh] shadow-[0_0_15px_rgba(173,187,255,0.2)]"
         >

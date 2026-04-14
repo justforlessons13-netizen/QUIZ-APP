@@ -10,7 +10,7 @@ import { HostGrading } from '@/components/host-game/HostGrading';
 import { RoundReveal } from '@/components/host-game/RoundReveal';
 import { LiveLeaderboard } from '@/components/host-game/LiveLeaderboard';
 import { LotteryRandomizer } from '@/components/host-game/LotteryRandomizer';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { getFirestore, setDoc, doc, getDoc } from 'firebase/firestore';
 import { GameRulesDisplay } from '@/components/host-game/GameRulesDisplay';
 import { RoundRulesDisplay } from '@/components/host-game/RoundRulesDisplay';
@@ -18,6 +18,7 @@ import { GamePhaseBackground } from '@/components/layout/GamePhaseBackground';
 import { GameAudioController } from '@/components/layout/GameAudioController';
 import { RemoteControlModal } from '@/components/host-game/RemoteControlModal';
 import { HostLeaderboardModal } from '@/components/host-game/HostLeaderboardModal';
+import { unlockWebAudio } from '@/lib/sounds';
 
 function LiveGameController({
   pack,
@@ -31,6 +32,8 @@ function LiveGameController({
   const navigate = useNavigate();
   const [projectorMode, setProjectorMode] = useState(initialProjectorMode);
 
+  const prevPhase = useRef(pack ? 'team-setup' : '');
+  
   const toggleProjectorMode = useCallback(() => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen?.().then(() => setProjectorMode(true)).catch(() => setProjectorMode(true));
@@ -118,7 +121,26 @@ function LiveGameController({
         console.error("Failed to create game code lookup:", err);
       });
     }
-  }, [gameCode, sessionId, pack.name]);
+    
+    if (game && prevPhase.current === 'round-rules' && game.phase === 'question' && projectorMode) {
+      const audio = new Audio('/assets/here-we-go.mp3');
+      audio.play().catch(() => {});
+    }
+    if (game) {
+      prevPhase.current = game.phase;
+    }
+  }, [gameCode, sessionId, pack.name, game?.phase, projectorMode]);
+
+  // Unlock Web Audio Context locally upon any interaction with the screen
+  useEffect(() => {
+    const unlock = () => { unlockWebAudio(); };
+    window.addEventListener('click', unlock, { once: true });
+    window.addEventListener('touchstart', unlock, { once: true });
+    return () => {
+      window.removeEventListener('click', unlock);
+      window.removeEventListener('touchstart', unlock);
+    };
+  }, []);
 
   const currentQuestion = game.currentQuestionIndex < pack.questions.length
     ? pack.questions[game.currentQuestionIndex]
@@ -148,6 +170,7 @@ function LiveGameController({
         hasMediaContent={questionHasSound}
         volume={0.2}
         forceMuted={!projectorMode}
+        hideControls={false}
       />
 
       {/* FIXED HEADER: Now matches your Canva mockups perfectly */}
