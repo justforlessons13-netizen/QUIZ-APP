@@ -67,8 +67,11 @@ export default function HostDashboard() {
   const handleSave = (pack: QuestionPack) => {
     if (isNewPack) {
       addPack(pack);
+      setIsNewPack(false);
+      setEditingPack(pack);
     } else {
       updatePack(pack);
+      setEditingPack(pack);
     }
   };
 

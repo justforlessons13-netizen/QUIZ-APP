@@ -37,6 +37,7 @@ export type HostGamePhase =
   | 'lottery'
   | 'leaderboard'
   | 'final-reveal'
+  | 'final-standings'
   | 'finished';
 
 export interface LiveGameState {

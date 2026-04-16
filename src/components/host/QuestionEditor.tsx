@@ -174,7 +174,7 @@ export function QuestionEditor({
               variant="destructive"
               size="icon"
               className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={() => update({ mediaUrl: undefined })}
+              onClick={() => update({ mediaUrl: '' })}
             >
               <Trash2 className="w-3 h-3" />
             </Button>
@@ -239,7 +239,7 @@ export function QuestionEditor({
               variant="destructive"
               size="icon"
               className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={() => update({ answerMediaUrl: undefined })}
+              onClick={() => update({ answerMediaUrl: '' })}
             >
               <Trash2 className="w-3 h-3" />
             </Button>

@@ -611,6 +611,21 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
     );
   }
 
+  // Final Standings Phase
+  if (game.phase === 'final-standings') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="flex flex-col items-center gap-4 p-8 text-center h-[80vh] justify-center"
+      >
+        <Trophy className="w-16 h-16 text-primary mb-2 animate-bounce" />
+        <h2 className="text-2xl font-bold text-foreground">View the Big Screen!</h2>
+        <p className="text-muted-foreground">The final standings are being displayed.</p>
+      </motion.div>
+    );
+  }
+
   return (
     <div className="flex flex-col items-center gap-4 p-8 text-center">
       <Loader2 className="w-6 h-6 animate-spin text-primary" />

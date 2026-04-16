@@ -90,7 +90,6 @@ export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }
 
     onSave(finalDraft);
     toast({ title: isNew ? 'Pack created!' : 'Pack updated!', description: finalDraft.name });
-    onBack();
   };
 
   const handleReset = () => {

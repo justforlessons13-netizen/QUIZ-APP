@@ -36,6 +36,7 @@ export type GamePhase =
   | 'reveal'
   | 'leaderboard'
   | 'final-reveal'
+  | 'final-standings'
   | 'finished';
 
 export function calculateScore(roundId: number, isCorrect: boolean, isWagered: boolean): number {

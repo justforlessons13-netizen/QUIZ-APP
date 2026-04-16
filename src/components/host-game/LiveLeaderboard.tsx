@@ -184,7 +184,7 @@ export function LiveLeaderboard({
             {gold.score} pts
           </p>
           <Button onClick={onContinue} className="w-full max-w-xs py-3 h-auto text-base font-bold rounded-xl mt-4">
-            Finish Game
+            Show Final Standings →
           </Button>
         </motion.div>
       )}

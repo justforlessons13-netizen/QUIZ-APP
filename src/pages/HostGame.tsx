@@ -10,6 +10,7 @@ import { HostGrading } from '@/components/host-game/HostGrading';
 import { RoundReveal } from '@/components/host-game/RoundReveal';
 import { LiveLeaderboard } from '@/components/host-game/LiveLeaderboard';
 import { LotteryRandomizer } from '@/components/host-game/LotteryRandomizer';
+import { FinalStandingsDisplay } from '@/components/host-game/FinalStandingsDisplay';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { getFirestore, setDoc, doc, getDoc } from 'firebase/firestore';
 import { GameRulesDisplay } from '@/components/host-game/GameRulesDisplay';
@@ -351,10 +352,19 @@ function LiveGameController({
               teams={game.teams}
               isFinal={true}
               currentRound={game.currentRound}
-              onContinue={() => setPhase('finished')}
+              onContinue={() => setPhase('final-standings')}
               projectorMode={projectorMode}
               revealStep={game.revealStep || 0}
               onSetRevealStep={updateRevealStep}
+            />
+          )}
+
+          {game.phase === 'final-standings' && (
+            <FinalStandingsDisplay
+              key="final-standings"
+              teams={game.teams}
+              projectorMode={projectorMode}
+              onFinish={() => setPhase('finished')}
             />
           )}
 

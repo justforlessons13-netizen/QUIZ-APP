@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { playDrumroll, playRevealStep } from '@/lib/sounds';
 
 interface LotteryRandomizerProps {
   lotteryState?: {
@@ -47,7 +48,9 @@ export function LotteryRandomizer({
   const startRollingAnimation = (finalNumber: number) => {
     setIsAnimating(true);
     let frames = 0;
-    const maxFrames = 40; // ~2 seconds of animation at 20fps
+    const maxFrames = 30; // ~1.5 seconds of animation at 20fps
+    
+    playDrumroll();
     
     const interval = setInterval(() => {
       frames++;
@@ -59,6 +62,7 @@ export function LotteryRandomizer({
         clearInterval(interval);
         setDisplayNumber(finalNumber);
         setIsAnimating(false);
+        playRevealStep();
       }
     }, 50);
   };
