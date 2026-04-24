@@ -18,5 +18,11 @@ service cloud.firestore {
     match /games/{gameId} {
       allow read, write: if true;
     }
+    
+    // Host Game Sessions
+    match /host-sessions/{sessionId} {
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId;
+      allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.ownerId;
+    }
   }
 }
