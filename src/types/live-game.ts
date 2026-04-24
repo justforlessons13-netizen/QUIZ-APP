@@ -64,7 +64,7 @@ export interface LiveGameState {
 }
 
 export const TEAM_EMOJIS = [
-  '🎯', '🧠', '🪄', '🚀', '📚', '🎸', '🦊', '⭐', '🔥', '🎲'
+  '🎯', '🧠', '🪄', '🚀', '📚', '🎸', '🦊', '⭐', '🔥', '🎲', '🇹🇿', '🦁', '🦖', '💎', '🎮', '🐼', '🍕', '👻'
 ];
 
 export function createLiveGame(sessionId: string, packId: string, packName: string, questions: Question[]): LiveGameState {

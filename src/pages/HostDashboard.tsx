@@ -9,6 +9,7 @@ import { QuestionPack, GameSession, createEmptyPack } from '@/types/host';
 import { QuestionPackList } from '@/components/host/QuestionPackList';
 import { QuestionPackEditor } from '@/components/host/QuestionPackEditor';
 import { GameSessionList } from '@/components/host/GameSessionList';
+import { useSessions } from '@/hooks/useSessions';
 import { toast } from '@/hooks/use-toast';
 import { getAuth, onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -24,19 +25,12 @@ export default function HostDashboard() {
   const [isNewPack, setIsNewPack] = useState(false);
   const [user, setUser] = useState<User | null>(null);
 
-  // --- NEW: Password Protection State ---
+  const { sessions, addSession, deleteSession } = useSessions(user);
+
+  // --- Password Protection State ---
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [packToStart, setPackToStart] = useState<QuestionPack | null>(null);
   const [passwordAttempt, setPasswordAttempt] = useState('');
-
-  const [sessions, setSessions] = useState<GameSession[]>(() => {
-    try {
-      const raw = localStorage.getItem('quiznight-sessions');
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  });
 
   useEffect(() => {
     const auth = getAuth();
@@ -80,29 +74,22 @@ export default function HostDashboard() {
     toast({ title: 'Pack deleted' });
   };
 
-  // --- UPDATED: Verification Logic ---
   const handleStartGame = (pack: QuestionPack) => {
-    // If Admin is logged in, bypass password check
     if (user) {
       proceedToGame(pack);
       return;
     }
-
-    // If pack has a password, prompt for it
     if (pack.packPassword) {
       setPackToStart(pack);
       setIsPasswordDialogOpen(true);
       return;
     }
-
-    // If no password, start normally
     proceedToGame(pack);
   };
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!packToStart) return;
-
     if (passwordAttempt === packToStart.packPassword) {
       setIsPasswordDialogOpen(false);
       setPasswordAttempt('');
@@ -126,17 +113,13 @@ export default function HostDashboard() {
       createdAt: new Date().toISOString(),
       teamCount: 0,
     };
-    const updated = [session, ...sessions];
-    setSessions(updated);
-    localStorage.setItem('quiznight-sessions', JSON.stringify(updated));
-    navigate(`/host/game?session=${session.id}&pack=${pack.id}`);
-  };
 
-  const handleDeleteSession = (id: string) => {
-    const updated = sessions.filter(s => s.id !== id);
-    setSessions(updated);
-    localStorage.setItem('quiznight-sessions', JSON.stringify(updated));
-    toast({ title: 'Session removed' });
+    // Save to Firestore if logged in, otherwise skip (guest host)
+    if (user) {
+      addSession(session);
+    }
+
+    navigate(`/host/game?session=${session.id}&pack=${pack.id}`);
   };
 
   return (
@@ -185,7 +168,6 @@ export default function HostDashboard() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6"
           >
-            {/* Dashboard title */}
             <div className="text-center sm:text-left">
               <h2 className="text-2xl font-bold text-foreground">
                 <span className="text-primary text-glow-primary">Quiz</span>Master Panel
@@ -195,7 +177,6 @@ export default function HostDashboard() {
               </p>
             </div>
 
-            {/* Tabs */}
             <Tabs defaultValue="packs" className="w-full">
               <TabsList className="w-full grid grid-cols-2 bg-secondary/50">
                 <TabsTrigger value="packs" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
@@ -219,17 +200,29 @@ export default function HostDashboard() {
               </TabsContent>
 
               <TabsContent value="sessions" className="mt-4">
-                <GameSessionList
-                  sessions={sessions}
-                  onDelete={handleDeleteSession}
-                />
+                {!user ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
+                    <Lock className="w-8 h-8 text-muted-foreground/40" />
+                    <p className="text-sm text-muted-foreground font-sugo uppercase tracking-widest">
+                      Log in as admin to track sessions
+                    </p>
+                    <Button size="sm" variant="secondary" onClick={() => navigate('/admin')}>
+                      Admin Login
+                    </Button>
+                  </div>
+                ) : (
+                  <GameSessionList
+                    sessions={sessions}
+                    onDelete={deleteSession}
+                  />
+                )}
               </TabsContent>
             </Tabs>
           </motion.div>
         )}
       </main>
 
-      {/* --- Password Protection Dialog --- */}
+      {/* Password Protection Dialog */}
       <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
