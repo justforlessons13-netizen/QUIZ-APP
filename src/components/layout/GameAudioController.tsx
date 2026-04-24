@@ -37,6 +37,8 @@ export function GameAudioController({
   const [isMuted, setIsMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  // Detect the exact moment timerActive flips ON so we can restart music from 0
+  const prevTimerActive = useRef(false);
 
   useEffect(() => {
     const newTrack = MUSIC_MAP[phase] || '';
@@ -91,17 +93,26 @@ export function GameAudioController({
       return;
     }
 
-    // Only update the src if it actually changed to prevent resetting to 0:00!
+    // Update src if it changed (different phase/track)
     if (audio.src !== blobUrl) {
       audio.src = blobUrl;
+      audio.currentTime = 0;
     }
 
     audio.volume = isMuted || forceMuted ? 0 : volume;
+
+    const timerJustStarted = timerActive && !prevTimerActive.current;
+    prevTimerActive.current = timerActive;
 
     // Background music stays silent if it's a question phase AND (timer is off OR question has its own sound)
     const shouldActuallyPlay = phase !== 'question' || (timerActive && !hasMediaContent);
 
     if (shouldActuallyPlay) {
+      // If the timer just turned ON for a question, restart music from the beginning
+      if (phase === 'question' && timerJustStarted) {
+        audio.currentTime = 0;
+      }
+
       const playPromise = audio.play();
       if (playPromise !== undefined) {
         playPromise
@@ -119,7 +130,12 @@ export function GameAudioController({
           });
       }
     } else {
+      // Timer stopped or question has media — pause and reset position
+      // so next question starts fresh
       audio.pause();
+      if (phase === 'question') {
+        audio.currentTime = 0;
+      }
       setIsPlaying(false);
     }
   }, [blobUrl, isMuted, volume, timerActive, phase, hasMediaContent, forceMuted]);
@@ -148,36 +164,36 @@ export function GameAudioController({
       {/* --- AUDIO CONTROLS (NO TEXT) --- */}
       {!hideControls && (
         <footer className="fixed bottom-[44px] right-[55px] z-50 flex items-center gap-0 opacity-80 transition-opacity hover:opacity-100 font-sugo">
-        {/* Play/Pause Button */}
-        <button
-          onClick={togglePlay}
-          disabled={isLoading || !track}
-          className="flex items-center justify-center transition-all disabled:opacity-50 opacity-80 hover:opacity-100 hover:scale-110 active:scale-95"
-        >
-          {isLoading ? (
-            <Loader2 className="h-[20px] w-[20px] animate-spin text-white" />
-          ) : error ? (
-            <AlertCircle className="h-[20px] w-[20px] text-white" />
-          ) : isPlaying ? (
-            <img src="/pause.svg" alt="Pause" className="h-[20px] w-auto pointer-events-none" />
-          ) : (
-            <img src="/play.svg" alt="Play" className="h-[20px] w-auto pointer-events-none" />
-          )}
-        </button>
+          {/* Play/Pause Button */}
+          <button
+            onClick={togglePlay}
+            disabled={isLoading || !track}
+            className="flex items-center justify-center transition-all disabled:opacity-50 opacity-80 hover:opacity-100 hover:scale-110 active:scale-95"
+          >
+            {isLoading ? (
+              <Loader2 className="h-[20px] w-[20px] animate-spin text-white" />
+            ) : error ? (
+              <AlertCircle className="h-[20px] w-[20px] text-white" />
+            ) : isPlaying ? (
+              <img src="/pause.svg" alt="Pause" className="h-[20px] w-auto pointer-events-none" />
+            ) : (
+              <img src="/play.svg" alt="Play" className="h-[20px] w-auto pointer-events-none" />
+            )}
+          </button>
 
-        {/* Mute/Volume Button */}
-        <button
-          onClick={toggleMute}
-          disabled={!track}
-          className="flex items-center justify-center transition-all disabled:opacity-50 opacity-80 hover:opacity-100 hover:scale-110 active:scale-95"
-        >
-          {isMuted ? (
-            <img src="/mute.svg" alt="Muted" className="h-[20px] w-auto pointer-events-none" />
-          ) : (
-            <img src="/volume.svg" alt="Volume" className="h-[20px] w-auto pointer-events-none" />
-          )}
-        </button>
-      </footer>
+          {/* Mute/Volume Button */}
+          <button
+            onClick={toggleMute}
+            disabled={!track}
+            className="flex items-center justify-center transition-all disabled:opacity-50 opacity-80 hover:opacity-100 hover:scale-110 active:scale-95"
+          >
+            {isMuted ? (
+              <img src="/mute.svg" alt="Muted" className="h-[20px] w-auto pointer-events-none" />
+            ) : (
+              <img src="/volume.svg" alt="Volume" className="h-[20px] w-auto pointer-events-none" />
+            )}
+          </button>
+        </footer>
       )}
     </>
   );

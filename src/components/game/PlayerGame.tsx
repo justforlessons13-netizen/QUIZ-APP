@@ -19,6 +19,8 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
   const [myWager, setMyWager] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [lastQuestionIndex, setLastQuestionIndex] = useState(-1);
+  const [submittedForIndex, setSubmittedForIndex] = useState(-1);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   // NEW: Local state for smooth timer
   const [displayTime, setDisplayTime] = useState(0);
@@ -96,7 +98,7 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
 
             transaction.update(gameRef, { rounds: newRounds });
           });
-          
+
           setSubmitted(true);
         } catch (err) {
           console.error("Anti-cheat flag failed:", err);
@@ -114,6 +116,8 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
       setMyAnswer('');
       setMyWager(false);
       setSubmitted(false);
+      setSubmittedForIndex(-1);
+      setLightboxOpen(false);
       setLastQuestionIndex(game.currentQuestionIndex);
     }
   }, [game?.currentQuestionIndex, lastQuestionIndex]);
@@ -248,7 +252,73 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
           {currentQuestion.text}
         </h2>
 
-        {/* Time's Up Message */}
+        {/* ── MEDIA — image/video only on player device ── */}
+        {currentQuestion.mediaUrl && (() => {
+          const mUrl = currentQuestion.mediaUrl.toLowerCase();
+          const mIsAudio = mUrl.includes('.mp3') || mUrl.includes('.wav') || mUrl.includes('.m4a') || mUrl.includes('.ogg');
+          const mIsVideo = mUrl.includes('.mp4') || mUrl.includes('.webm') || mUrl.includes('.mov');
+          const mIsImage = !mIsAudio && !mIsVideo;
+          if (mIsAudio) return null; // audio-only questions: no media shown on phone
+          return (
+            <>
+              {mIsImage && (
+                <>
+                  {/* Thumbnail — tap to expand */}
+                  <button
+                    onClick={() => setLightboxOpen(true)}
+                    className="w-full rounded-xl overflow-hidden border border-border/50 bg-black/10 focus:outline-none active:scale-95 transition-transform"
+                  >
+                    <img
+                      src={currentQuestion.mediaUrl}
+                      alt="Question media"
+                      className="w-full max-h-56 object-contain"
+                    />
+                    <p className="text-[10px] text-muted-foreground/60 text-center pb-1.5 font-sugo tracking-widest uppercase">
+                      Tap to enlarge
+                    </p>
+                  </button>
+
+                  {/* Lightbox overlay */}
+                  {lightboxOpen && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+                      onClick={() => setLightboxOpen(false)}
+                    >
+                      <motion.img
+                        initial={{ scale: 0.85 }}
+                        animate={{ scale: 1 }}
+                        src={currentQuestion.mediaUrl}
+                        alt="Question media enlarged"
+                        className="max-w-full max-h-full object-contain rounded-lg"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <button
+                        onClick={() => setLightboxOpen(false)}
+                        className="absolute top-4 right-4 text-white/70 hover:text-white font-bungee text-sm bg-black/50 px-3 py-1.5 rounded-lg"
+                      >
+                        ✕ Close
+                      </button>
+                    </motion.div>
+                  )}
+                </>
+              )}
+
+              {mIsVideo && (
+                <div className="w-full rounded-xl overflow-hidden border border-border/50 bg-black/10">
+                  <video
+                    src={currentQuestion.mediaUrl}
+                    controls
+                    playsInline
+                    className="w-full max-h-56 object-contain"
+                  />
+                </div>
+              )}
+            </>
+          );
+        })()}
         {isTimeUp && !submitted && (
           <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive font-bold w-full text-center">
             Time's Up! 🛑
@@ -389,7 +459,7 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.1 }}
                 className={`p-4 rounded-xl border bg-card/50 ${myAnswer.hasCheated ? 'border-red-500/50 bg-red-500/5' :
-                    myAnswer.isCorrect ? 'border-success/30' : 'border-destructive/30'
+                  myAnswer.isCorrect ? 'border-success/30' : 'border-destructive/30'
                   }`}
               >
                 <div className="flex justify-between items-start gap-3">
@@ -421,10 +491,10 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
 
                   {/* Score Circle - will show 0 automatically because of useLiveGame.ts update */}
                   <div className={`flex flex-col items-center justify-center w-12 h-12 rounded-lg border ${myAnswer.hasCheated ? 'border-red-500/30 bg-red-500/10' :
-                      myAnswer.pointsAwarded > 0 ? 'bg-success/10 border-success/30' : 'bg-card border-border'
+                    myAnswer.pointsAwarded > 0 ? 'bg-success/10 border-success/30' : 'bg-card border-border'
                     }`}>
                     <span className={`text-lg font-bold ${myAnswer.hasCheated ? 'text-red-500' :
-                        myAnswer.pointsAwarded > 0 ? 'text-success' : 'text-muted-foreground'
+                      myAnswer.pointsAwarded > 0 ? 'text-success' : 'text-muted-foreground'
                       }`}>
                       {myAnswer.pointsAwarded > 0 ? '+' : ''}{myAnswer.pointsAwarded}
                     </span>
