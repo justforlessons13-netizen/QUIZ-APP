@@ -258,28 +258,38 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
           const mIsAudio = mUrl.includes('.mp3') || mUrl.includes('.wav') || mUrl.includes('.m4a') || mUrl.includes('.ogg');
           const mIsVideo = mUrl.includes('.mp4') || mUrl.includes('.webm') || mUrl.includes('.mov');
           const mIsImage = !mIsAudio && !mIsVideo;
-          if (mIsAudio) return null; // audio-only questions: no media shown on phone
+          if (mIsAudio) return null;
+          const isRevealed = game.timerActive || displayTime < game.timeLeft;
           return (
             <>
               {mIsImage && (
                 <>
-                  {/* Thumbnail — tap to expand */}
                   <button
-                    onClick={() => setLightboxOpen(true)}
-                    className="w-full rounded-xl overflow-hidden border border-border/50 bg-black/10 focus:outline-none active:scale-95 transition-transform"
+                    onClick={() => isRevealed && setLightboxOpen(true)}
+                    className={`w-full rounded-xl overflow-hidden border border-border/50 bg-black/10 focus:outline-none transition-all ${isRevealed ? 'active:scale-95 cursor-pointer' : 'cursor-not-allowed'}`}
                   >
-                    <img
-                      src={currentQuestion.mediaUrl}
-                      alt="Question media"
-                      className="w-full max-h-56 object-contain"
-                    />
-                    <p className="text-[10px] text-muted-foreground/60 text-center pb-1.5 font-sugo tracking-widest uppercase">
-                      Tap to enlarge
-                    </p>
+                    <div className="relative">
+                      <img
+                        src={currentQuestion.mediaUrl}
+                        alt="Question media"
+                        className={`w-full max-h-56 object-contain transition-all duration-700 ${isRevealed ? '' : 'blur-xl grayscale opacity-40'}`}
+                      />
+                      {!isRevealed && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="font-bungee text-[#adbbff] uppercase text-sm tracking-widest opacity-80">
+                            Waiting...
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {isRevealed && (
+                      <p className="text-[10px] text-muted-foreground/60 text-center pb-1.5 font-sugo tracking-widest uppercase">
+                        Tap to enlarge
+                      </p>
+                    )}
                   </button>
 
-                  {/* Lightbox overlay */}
-                  {lightboxOpen && (
+                  {lightboxOpen && isRevealed && (
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -307,13 +317,20 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
               )}
 
               {mIsVideo && (
-                <div className="w-full rounded-xl overflow-hidden border border-border/50 bg-black/10">
+                <div className={`w-full rounded-xl overflow-hidden border border-border/50 bg-black/10 relative transition-all duration-700`}>
                   <video
                     src={currentQuestion.mediaUrl}
-                    controls
+                    controls={isRevealed}
                     playsInline
-                    className="w-full max-h-56 object-contain"
+                    className={`w-full max-h-56 object-contain transition-all duration-700 ${isRevealed ? '' : 'blur-xl grayscale opacity-40'}`}
                   />
+                  {!isRevealed && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <span className="font-bungee text-[#adbbff] uppercase text-sm tracking-widest opacity-80">
+                        Waiting...
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </>
