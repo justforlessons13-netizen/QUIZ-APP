@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { getFirestore, doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { LiveGameState, LiveTeam, RoundState, HostGamePhase, TEAM_EMOJIS, createLiveGame } from '@/types/live-game';
 import { Question, checkAnswer, calculateScore } from '@/types/game';
 
@@ -448,32 +448,45 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
     });
   }, []);
 
-  const adjustTeamScore = useCallback((teamId: string, pointDelta: number, specificRoundIndex?: number) => {
-    setGame(prev => {
-      let roundIndex = specificRoundIndex;
-      if (roundIndex === undefined) {
-        const currentQ = prev.questions[prev.currentQuestionIndex];
-        if (!currentQ) return prev;
-        roundIndex = currentQ.round - 1;
-      }
+  const adjustTeamScore = useCallback(async (teamId: string, pointDelta: number, specificRoundIndex?: number) => {
+    const db = getFirestore();
+    const gameRef = doc(db, 'games', sessionId);
 
-      const refinedTeams = prev.teams.map(t => {
-        if (t.id !== teamId) return t;
+    // Read the freshest state directly from Firestore so rapid clicks
+    // never race against each other through stale local state.
+    const snap = await getDoc(gameRef);
+    if (!snap.exists()) return;
 
-        const newRoundScores = [...t.roundScores];
-        while (newRoundScores.length <= roundIndex!) newRoundScores.push(0);
-        newRoundScores[roundIndex!] += pointDelta;
+    const current = snap.data() as LiveGameState;
 
-        return {
-          ...t,
-          score: t.score + pointDelta,
-          roundScores: newRoundScores
-        };
-      });
+    let roundIndex = specificRoundIndex;
+    if (roundIndex === undefined) {
+      const currentQ = current.questions[current.currentQuestionIndex];
+      if (!currentQ) return;
+      roundIndex = currentQ.round - 1;
+    }
 
-      return { ...prev, teams: refinedTeams };
+    const updatedTeams = current.teams.map(t => {
+      if (t.id !== teamId) return t;
+
+      const newRoundScores = [...t.roundScores];
+      while (newRoundScores.length <= roundIndex!) newRoundScores.push(0);
+      newRoundScores[roundIndex!] = (newRoundScores[roundIndex!] || 0) + pointDelta;
+
+      return {
+        ...t,
+        score: t.score + pointDelta,
+        roundScores: newRoundScores,
+      };
     });
-  }, []);
+
+    // Write the full teams array atomically — no diff, no race.
+    await updateDoc(gameRef, { teams: updatedTeams });
+
+    // Also update local state so the UI reflects instantly without waiting
+    // for the Firestore snapshot to come back.
+    setGame(prev => ({ ...prev, teams: updatedTeams }));
+  }, [sessionId]);
 
   const advanceFromLeaderboard = useCallback(() => {
     setGame(prev => {
