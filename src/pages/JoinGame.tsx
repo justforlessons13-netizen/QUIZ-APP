@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getFirestore, doc, getDoc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { ArrowLeft, LogIn, LogOut } from 'lucide-react';
@@ -40,7 +40,9 @@ function clearSession() {
 
 export default function JoinGame() {
   const navigate = useNavigate();
-  const [code, setCode] = useState('');
+  const [searchParams] = useSearchParams();
+  const initialCode = searchParams.get('code') || '';
+  const [code, setCode] = useState(initialCode);
   const [teamName, setTeamName] = useState('');
   const [selectedEmoji, setSelectedEmoji] = useState(TEAM_EMOJIS[0]);
   const [takenEmojis, setTakenEmojis] = useState<string[]>([]);
@@ -75,6 +77,10 @@ export default function JoinGame() {
         .finally(() => setRestoring(false));
     } else {
       setRestoring(false);
+      // Auto-lookup if code was in URL
+      if (initialCode && initialCode.length >= 4) {
+        handleLookup(initialCode);
+      }
     }
   }, []);
 
@@ -103,9 +109,10 @@ export default function JoinGame() {
     return () => unsubscribe();
   }, [found]);
 
-  const handleLookup = async () => {
+  const handleLookup = async (codeToLookup?: string) => {
+    const lookupCode = codeToLookup || code;
     const db = getFirestore();
-    const codeDocRef = doc(db, 'game-codes', code.toUpperCase());
+    const codeDocRef = doc(db, 'game-codes', lookupCode.toUpperCase());
     try {
       const codeDoc = await getDoc(codeDocRef);
       if (codeDoc.exists()) {
@@ -256,7 +263,7 @@ export default function JoinGame() {
                 onKeyDown={(e) => e.key === 'Enter' && code.length >= 4 && handleLookup()}
               />
               <Button
-                onClick={handleLookup}
+                onClick={() => handleLookup()}
                 disabled={code.length < 4}
                 className="w-full py-3 h-auto text-base font-bold rounded-xl"
               >
