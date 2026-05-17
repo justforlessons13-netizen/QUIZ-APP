@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, RotateCcw, Maximize, Minimize, Home, MonitorUp, Smartphone, Trophy } from 'lucide-react';
+import { ArrowLeft, RotateCcw, Home, MonitorUp, Smartphone, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLiveGame } from '@/hooks/useLiveGame';
 import { QuestionPack } from '@/types/host';
@@ -32,28 +32,42 @@ function LiveGameController({
 }) {
   const navigate = useNavigate();
   const [projectorMode, setProjectorMode] = useState(initialProjectorMode);
+  const [showFullscreenBtn, setShowFullscreenBtn] = useState(false);
+
+  useEffect(() => {
+    if (!projectorMode) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      setShowFullscreenBtn(e.clientY < 60);
+    };
+    document.addEventListener('mousemove', handleMouseMove);
+    return () => document.removeEventListener('mousemove', handleMouseMove);
+  }, [projectorMode]);
 
   const prevPhase = useRef(pack ? 'team-setup' : '');
-  
+
   const toggleProjectorMode = useCallback(() => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen?.().then(() => setProjectorMode(true)).catch(() => setProjectorMode(true));
     } else {
-      document.exitFullscreen?.().then(() => setProjectorMode(false)).catch(() => setProjectorMode(false));
+      document.exitFullscreen?.().then(() => {
+        if (!initialProjectorMode) setProjectorMode(false);
+      }).catch(() => {
+        if (!initialProjectorMode) setProjectorMode(false);
+      });
     }
-  }, []);
+  }, [initialProjectorMode]);
 
   const [showRemote, setShowRemote] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   const openProjectorWindow = async () => {
     const projUrl = window.location.href + (window.location.href.includes('?') ? '&' : '?') + 'projector=true';
-    
+
     try {
       if ('getScreenDetails' in window) {
         const screenDetails = await (window as any).getScreenDetails();
         const externalScreen = screenDetails.screens.find((s: any) => s.isExtended);
-        
+
         if (externalScreen) {
           window.open(
             projUrl,
@@ -66,18 +80,18 @@ function LiveGameController({
     } catch (err) {
       console.warn("Screen Details API not available or permission denied", err);
     }
-    
+
     // Fallback: specifically open as a popup window if we couldn't detect the extended screen
     window.open(projUrl, 'QGameProjector', 'popup=yes,width=1280,height=720,menubar=no,toolbar=no,location=no,status=no');
   };
 
   useEffect(() => {
     const onFSChange = () => {
-      if (!document.fullscreenElement) setProjectorMode(false);
+      if (!document.fullscreenElement && !initialProjectorMode) setProjectorMode(false);
     };
     document.addEventListener('fullscreenchange', onFSChange);
     return () => document.removeEventListener('fullscreenchange', onFSChange);
-  }, []);
+  }, [initialProjectorMode]);
 
   const {
     game,
@@ -101,6 +115,7 @@ function LiveGameController({
     drawLotteryNumber,
     resetGame,
     updateRevealStep,
+    updateRuleIndex,
     adjustTeamScore,
   } = useLiveGame(
     sessionId,
@@ -122,10 +137,10 @@ function LiveGameController({
         console.error("Failed to create game code lookup:", err);
       });
     }
-    
+
     if (game && prevPhase.current === 'round-rules' && game.phase === 'question' && projectorMode) {
       const audio = new Audio('/assets/here-we-go.mp3');
-      audio.play().catch(() => {});
+      audio.play().catch(() => { });
     }
     if (game) {
       prevPhase.current = game.phase;
@@ -171,7 +186,7 @@ function LiveGameController({
         hasMediaContent={questionHasSound}
         volume={0.2}
         forceMuted={!projectorMode}
-        hideControls={false}
+        hideControls={projectorMode}
       />
 
       {/* FIXED HEADER: Now matches your Canva mockups perfectly */}
@@ -193,32 +208,56 @@ function LiveGameController({
             onClick={toggleProjectorMode}
             className="flex items-center gap-3 hover:text-white transition-colors uppercase"
           >
-            <Maximize className="w-5 h-5" />
+            <i className="ti ti-arrows-maximize text-[20px]" />
             Projector
           </button>
         </header>
       )}
 
+      {/* Projector Minimal Header for team-setup phase */}
+      {projectorMode && game.phase === 'team-setup' && (
+        <header className="absolute top-0 left-0 right-0 z-50 flex justify-between items-center w-full p-6 text-[#adbbff] font-bungee text-sm md:text-base tracking-wider transition-all pointer-events-none">
+          <div className="flex-1"></div>
+          <div className="opacity-80 text-center flex-1 uppercase tracking-widest pointer-events-auto">
+            {pack.name}
+          </div>
+          <div className="flex-1 flex justify-end">
+            <button
+              onClick={toggleProjectorMode}
+              className={`p-2 rounded-lg hover:bg-white/10 text-[#adbbff]/60 hover:text-white transition-all duration-300 pointer-events-auto ${showFullscreenBtn ? 'opacity-100' : 'opacity-0'}`}
+            >
+              {document.fullscreenElement ? <i className="ti ti-arrows-minimize text-[24px]" /> : <i className="ti ti-arrows-maximize text-[24px]" />}
+            </button>
+          </div>
+        </header>
+      )}
+
       {/* Hidden Projector Utility Bar (Shows only on hover) */}
-      {projectorMode && (
-        <div className="fixed top-4 right-4 z-50 flex items-center gap-2 opacity-0 hover:opacity-100 transition-opacity duration-300">
-          {game.phase !== 'team-setup' && game.phase !== 'finished' && (
-            <span className="text-xs text-muted-foreground bg-card/80 backdrop-blur px-3 py-1.5 rounded-lg border border-border/50">
-              R{game.currentRound} · Q{questionNumberInRound}/{totalQuestionsInRound}
-            </span>
-          )}
-          <Button variant="secondary" size="sm" onClick={toggleProjectorMode} className="bg-card/80 backdrop-blur border border-border/50">
-            <Minimize className="w-4 h-4 mr-1" /> Exit
-          </Button>
-          {game.phase !== 'team-setup' && (
-            <Button variant="secondary" size="sm" onClick={resetGame} className="bg-card/80 backdrop-blur border border-border/50">
-              <RotateCcw className="w-4 h-4" />
-            </Button>
-          )}
+      {projectorMode && game.phase !== 'team-setup' && (
+        <div className="fixed top-0 left-0 right-0 h-[60px] z-50 flex justify-end items-start p-4 opacity-0 hover:opacity-100 transition-opacity duration-300">
+          <div className="flex items-center gap-4">
+            {game.phase !== 'team-setup' && game.phase !== 'finished' && (
+              <span className="text-xs text-muted-foreground bg-card/80 backdrop-blur px-3 py-1.5 rounded-lg border border-border/50 pointer-events-auto">
+                R{game.currentRound} · Q{questionNumberInRound}/{totalQuestionsInRound}
+              </span>
+            )}
+            <button onClick={toggleProjectorMode} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 text-[#adbbff]/60 hover:text-white transition-all duration-300 pointer-events-auto font-bungee tracking-widest uppercase text-[12px]">
+              {document.fullscreenElement ? (
+                <><i className="ti ti-arrows-minimize text-[20px]" /> Exit</>
+              ) : (
+                <><i className="ti ti-arrows-maximize text-[20px]" /> Fullscreen</>
+              )}
+            </button>
+            {game.phase !== 'team-setup' && (
+              <button onClick={resetGame} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 text-[#adbbff]/60 hover:text-white transition-all duration-300 pointer-events-auto font-bungee tracking-widest uppercase text-[12px]">
+                <RotateCcw className="w-4 h-4" /> Reset
+              </button>
+            )}
+          </div>
         </div>
       )}
 
-      <main className={`relative z-20 flex-1 flex items-center justify-center ${projectorMode ? 'p-8' : 'p-4'}`}>
+      <main className={`relative z-20 flex-1 h-full flex flex-col items-center justify-center ${projectorMode ? 'p-8' : 'p-4'}`}>
         <AnimatePresence mode="wait">
           {game.phase === 'team-setup' && (
             <TeamSetup
@@ -235,9 +274,10 @@ function LiveGameController({
           {game.phase === 'game-rules' && (
             <GameRulesDisplay
               key="game-rules"
-              rules={pack.gameRules}
               projectorMode={projectorMode}
               onContinue={advanceToRoundRules}
+              currentRuleIndex={game.currentRuleIndex}
+              onSetRuleIndex={updateRuleIndex}
             />
           )}
 
@@ -396,42 +436,42 @@ function LiveGameController({
       {!projectorMode && (
         <div className="fixed bottom-[44px] left-[55px] z-[60] flex items-center pointer-events-none">
           <div className="flex items-center gap-0 pointer-events-auto">
-             <button
-               onClick={() => setPhase('team-setup')}
-               className="hover:scale-110 active:scale-95 transition-all opacity-60 hover:opacity-100"
-               title="Home (Lobby)"
-             >
-               <img src="/home.svg" alt="Home" className="h-[20px] w-auto pointer-events-none" />
-             </button>
-             <button
-               onClick={openProjectorWindow}
-               className="hover:scale-110 active:scale-95 transition-all opacity-60 hover:opacity-100"
-               title="Projector Mode"
-             >
-               <img src="/project.svg" alt="Projector Mode" className="h-[20px] w-auto pointer-events-none" />
-             </button>
-             <button
-               onClick={() => setShowRemote(true)}
-               className="hover:scale-110 active:scale-95 transition-all opacity-60 hover:opacity-100"
-               title="Remote Control"
-             >
-               <img src="/remote.svg" alt="Remote" className="h-[20px] w-auto pointer-events-none" />
-             </button>
-             <button
-               onClick={() => setShowLeaderboard(true)}
-               className="hover:scale-110 active:scale-95 transition-all opacity-60 hover:opacity-100"
-               title="Leaderboard"
-             >
-               <img src="/leaderboard.svg" alt="Leaderboard" className="h-[20px] w-auto pointer-events-none" />
-             </button>
+            <button
+              onClick={() => setPhase('team-setup')}
+              className="hover:scale-110 active:scale-95 transition-all opacity-60 hover:opacity-100"
+              title="Home (Lobby)"
+            >
+              <img src="/home.svg" alt="Home" className="h-[20px] w-auto pointer-events-none" />
+            </button>
+            <button
+              onClick={openProjectorWindow}
+              className="hover:scale-110 active:scale-95 transition-all opacity-60 hover:opacity-100"
+              title="Projector Mode"
+            >
+              <img src="/project.svg" alt="Projector Mode" className="h-[20px] w-auto pointer-events-none" />
+            </button>
+            <button
+              onClick={() => setShowRemote(true)}
+              className="hover:scale-110 active:scale-95 transition-all opacity-60 hover:opacity-100"
+              title="Remote Control"
+            >
+              <img src="/remote.svg" alt="Remote" className="h-[20px] w-auto pointer-events-none" />
+            </button>
+            <button
+              onClick={() => setShowLeaderboard(true)}
+              className="hover:scale-110 active:scale-95 transition-all opacity-60 hover:opacity-100"
+              title="Leaderboard"
+            >
+              <img src="/leaderboard.svg" alt="Leaderboard" className="h-[20px] w-auto pointer-events-none" />
+            </button>
           </div>
         </div>
       )}
 
       {/* Modals */}
-      <RemoteControlModal 
-        open={showRemote} 
-        onOpenChange={setShowRemote} 
+      <RemoteControlModal
+        open={showRemote}
+        onOpenChange={setShowRemote}
         gameCode={gameCode}
         sessionId={sessionId}
         packId={pack.id}

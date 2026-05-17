@@ -22,13 +22,12 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/demo" element={<GameDemo />} />
+          <Route path="/game-demo" element={<GameDemo />} />
           <Route path="/host" element={<HostDashboard />} />
           <Route path="/host/game" element={<HostGame />} />
           <Route path="/join" element={<JoinGame />} />
-          <Route path="/admin" element={<AdminLogin />} />
+          <Route path="/admin-login" element={<AdminLogin />} />
           <Route path="/printables" element={<Printables />} />
-          {/* Moved to the very bottom! */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

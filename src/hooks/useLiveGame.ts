@@ -5,13 +5,6 @@ import { Question, checkAnswer, calculateScore } from '@/types/game';
 
 const LEADERBOARD_ROUNDS = [2, 4, 6];
 
-async function saveGame(sessionId: string, state: LiveGameState) {
-  const db = getFirestore();
-  const gameRef = doc(db, 'games', sessionId);
-  await setDoc(gameRef, state);
-}
-
-// Helper updated to start questions with timer OFF
 function advanceToNextQuestion(prev: LiveGameState): LiveGameState {
   const nextIndex = prev.currentQuestionIndex + 1;
   if (nextIndex >= prev.questions.length) return { ...prev, phase: 'finished' };
@@ -51,9 +44,29 @@ function advanceToNextQuestion(prev: LiveGameState): LiveGameState {
     currentRound: nextQ.round,
     phase: 'question',
     timeLeft: time,
-    timerActive: false, // CHANGED: Wait for MC
+    timerActive: false,
     rounds: [...prev.rounds, newRound],
   };
+}
+
+// Deep comparison helper — prevents writing identical arrays/objects every render
+function getChanges(prev: LiveGameState, next: LiveGameState): Partial<LiveGameState> | null {
+  const changes: Partial<LiveGameState> = {};
+  let hasChange = false;
+  (Object.keys(next) as Array<keyof LiveGameState>).forEach((key) => {
+    const a = next[key];
+    const b = prev[key];
+    if (typeof a === 'object' && a !== null) {
+      if (JSON.stringify(a) !== JSON.stringify(b)) {
+        (changes as any)[key] = a;
+        hasChange = true;
+      }
+    } else if (a !== b) {
+      (changes as any)[key] = a;
+      hasChange = true;
+    }
+  });
+  return hasChange ? changes : null;
 }
 
 export function useLiveGame(sessionId: string, packId: string, packName: string, questions: Question[]) {
@@ -64,6 +77,7 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
   const isRemoteUpdate = useRef(false);
   const prevGameRef = useRef<LiveGameState>(game);
 
+  // Subscribe to Firestore for real-time updates
   useEffect(() => {
     const db = getFirestore();
     const gameRef = doc(db, 'games', sessionId);
@@ -83,8 +97,10 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
     return () => unsubscribe();
   }, [sessionId]);
 
+  // Persist on change to local state (Smart Save)
   useEffect(() => {
     if (loading) return;
+
     if (isRemoteUpdate.current) {
       isRemoteUpdate.current = false;
       return;
@@ -93,26 +109,22 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
     if (game.sessionId === sessionId) {
       const db = getFirestore();
       const gameRef = doc(db, 'games', sessionId);
+
       const prev = prevGameRef.current;
-      const changes: Record<string, any> = {};
+      const changes = getChanges(prev, game);
 
-      (Object.keys(game) as Array<keyof LiveGameState>).forEach(key => {
-        if (game[key] !== prev[key]) {
-          changes[key] = game[key];
-        }
-      });
-
-      if (Object.keys(changes).length > 0) {
-        updateDoc(gameRef, changes).catch(err => console.error("Save failed:", err));
+      if (changes && Object.keys(changes).length > 0) {
+        updateDoc(gameRef, changes).catch((err) => console.error('Save failed:', err));
       }
       prevGameRef.current = game;
     }
   }, [game, loading, sessionId]);
 
+  // Timer
   useEffect(() => {
     if (game.timerActive && game.timeLeft > 0) {
       timerRef.current = setInterval(() => {
-        setGame(prev => {
+        setGame((prev) => {
           if (prev.timeLeft <= 1) {
             return { ...prev, timeLeft: 0, timerActive: false };
           }
@@ -126,9 +138,9 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
   }, [game.timerActive]);
 
   const addTeam = useCallback((name: string, emoji?: string) => {
-    setGame(prev => {
-      const usedEmojis = prev.teams.map(t => t.emoji);
-      const availableEmoji = emoji || TEAM_EMOJIS.find(e => !usedEmojis.includes(e)) || '🎮';
+    setGame((prev) => {
+      const usedEmojis = prev.teams.map((t) => t.emoji);
+      const availableEmoji = emoji || TEAM_EMOJIS.find((e) => !usedEmojis.includes(e)) || '🎮';
       const team: LiveTeam = {
         id: crypto.randomUUID(),
         name,
@@ -141,19 +153,19 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
   }, []);
 
   const removeTeam = useCallback((id: string) => {
-    setGame(prev => ({
+    setGame((prev) => ({
       ...prev,
-      teams: prev.teams.filter(t => t.id !== id),
+      teams: prev.teams.filter((t) => t.id !== id),
     }));
   }, []);
 
   const setPhase = useCallback((phase: HostGamePhase) => {
-    setGame(prev => ({ ...prev, phase }));
+    setGame((prev) => ({ ...prev, phase }));
   }, []);
 
   const startGame = useCallback(() => {
     if (questions.length === 0) return;
-    setGame(prev => ({
+    setGame((prev) => ({
       ...prev,
       phase: 'game-rules',
       timerActive: false,
@@ -161,7 +173,7 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
   }, [questions]);
 
   const advanceToRoundRules = useCallback(() => {
-    setGame(prev => ({
+    setGame((prev) => ({
       ...prev,
       phase: 'round-rules',
       currentRound: 1,
@@ -169,13 +181,13 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
   }, []);
 
   const startRound = useCallback(() => {
-    setGame(prev => {
+    setGame((prev) => {
       const idx = prev.currentQuestionIndex;
       const q = prev.questions[idx];
       if (!q) return prev;
 
       const time = q.round < 6 ? 45 : 60;
-      const existingRound = prev.rounds.find(r => r.questionIndex === idx);
+      const existingRound = prev.rounds.find((r) => r.questionIndex === idx);
       let newRounds = prev.rounds;
 
       if (!existingRound) {
@@ -183,7 +195,7 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
           questionIndex: idx,
           roundNumber: q.round,
           question: q,
-          answers: prev.teams.map(t => ({
+          answers: prev.teams.map((t) => ({
             teamId: t.id,
             answer: '',
             isCorrect: null,
@@ -199,24 +211,23 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
         ...prev,
         phase: 'question',
         timeLeft: time,
-        timerActive: false, // CHANGED: Wait for MC
+        timerActive: false,
         rounds: newRounds,
       };
     });
   }, []);
 
-  // NEW: Manual trigger for the timer
   const startTimer = useCallback(() => {
-    setGame(prev => ({ ...prev, timerActive: true }));
+    setGame((prev) => ({ ...prev, timerActive: true }));
   }, []);
 
   const stopTimer = useCallback(() => {
-    setGame(prev => ({ ...prev, timerActive: false }));
+    setGame((prev) => ({ ...prev, timerActive: false }));
   }, []);
 
   const finishQuestion = useCallback(() => {
-    setGame(prev => {
-      const existing = prev.rounds.find(r => r.questionIndex === prev.currentQuestionIndex);
+    setGame((prev) => {
+      const existing = prev.rounds.find((r) => r.questionIndex === prev.currentQuestionIndex);
       let rounds = prev.rounds;
 
       if (!existing) {
@@ -225,7 +236,7 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
           questionIndex: prev.currentQuestionIndex,
           roundNumber: q.round,
           question: q,
-          answers: prev.teams.map(t => ({
+          answers: prev.teams.map((t) => ({
             teamId: t.id,
             answer: '',
             isCorrect: null,
@@ -243,13 +254,13 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
 
       if (nextQ && nextQ.round === currentQ.round) {
         const time = nextQ.round < 6 ? 45 : 60;
-        const existingNextRound = rounds.find(r => r.questionIndex === nextIndex);
+        const existingNextRound = rounds.find((r) => r.questionIndex === nextIndex);
         if (!existingNextRound) {
           const newRoundEntry: RoundState = {
             questionIndex: nextIndex,
             roundNumber: nextQ.round,
             question: nextQ,
-            answers: prev.teams.map(t => ({
+            answers: prev.teams.map((t) => ({
               teamId: t.id,
               answer: '',
               isCorrect: null,
@@ -266,25 +277,25 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
           phase: 'question',
           currentQuestionIndex: nextIndex,
           timeLeft: time,
-          timerActive: false, // CHANGED: Wait for MC
-          rounds: rounds
+          timerActive: false,
+          rounds,
         };
       }
 
       const roundQuestionsIndices = prev.questions
-        .map((q, i) => q.round === currentQ.round ? i : -1)
-        .filter(i => i !== -1);
+        .map((q, i) => (q.round === currentQ.round ? i : -1))
+        .filter((i) => i !== -1);
       const firstIndexInRound = roundQuestionsIndices[0];
 
-      const updatedRounds = rounds.map(r => {
+      const updatedRounds = rounds.map((r) => {
         if (r.roundNumber !== currentQ.round) return r;
         const q = prev.questions[r.questionIndex];
         return {
           ...r,
-          answers: r.answers.map(a => ({
+          answers: r.answers.map((a) => ({
             ...a,
             isCorrect: a.isCorrect ?? checkAnswer(a.answer, q.answer),
-          }))
+          })),
         };
       });
 
@@ -298,18 +309,16 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
     });
   }, []);
 
-  const advanceFromAnswerCollection = useCallback(() => { }, []);
+  const advanceFromAnswerCollection = useCallback(() => {}, []);
 
   const updateTeamAnswer = useCallback((teamId: string, answer: string, isWagered?: boolean) => {
-    setGame(prev => {
-      const rounds = prev.rounds.map(r => {
+    setGame((prev) => {
+      const rounds = prev.rounds.map((r) => {
         if (r.questionIndex !== prev.currentQuestionIndex) return r;
         return {
           ...r,
-          answers: r.answers.map(a =>
-            a.teamId === teamId
-              ? { ...a, answer, ...(isWagered !== undefined ? { isWagered } : {}) }
-              : a
+          answers: r.answers.map((a) =>
+            a.teamId === teamId ? { ...a, answer, ...(isWagered !== undefined ? { isWagered } : {}) } : a
           ),
         };
       });
@@ -318,14 +327,14 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
   }, []);
 
   const autoGrade = useCallback(() => {
-    setGame(prev => {
+    setGame((prev) => {
       const q = prev.questions[prev.currentQuestionIndex];
       if (!q) return prev;
-      const rounds = prev.rounds.map(r => {
+      const rounds = prev.rounds.map((r) => {
         if (r.questionIndex !== prev.currentQuestionIndex) return r;
         return {
           ...r,
-          answers: r.answers.map(a => ({
+          answers: r.answers.map((a) => ({
             ...a,
             isCorrect: checkAnswer(a.answer, q.answer),
           })),
@@ -336,14 +345,12 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
   }, []);
 
   const setAnswerCorrectness = useCallback((teamId: string, isCorrect: boolean) => {
-    setGame(prev => {
-      const rounds = prev.rounds.map(r => {
+    setGame((prev) => {
+      const rounds = prev.rounds.map((r) => {
         if (r.questionIndex !== prev.currentQuestionIndex) return r;
         return {
           ...r,
-          answers: r.answers.map(a =>
-            a.teamId === teamId ? { ...a, isCorrect } : a
-          ),
+          answers: r.answers.map((a) => (a.teamId === teamId ? { ...a, isCorrect } : a)),
         };
       });
       return { ...prev, rounds };
@@ -351,20 +358,15 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
   }, []);
 
   const finalizeGrading = useCallback(() => {
-    setGame(prev => {
-      const roundIdx = prev.rounds.findIndex(r => r.questionIndex === prev.currentQuestionIndex);
+    setGame((prev) => {
+      const roundIdx = prev.rounds.findIndex((r) => r.questionIndex === prev.currentQuestionIndex);
       if (roundIdx === -1) return prev;
 
       const roundState = prev.rounds[roundIdx];
       const currentQ = prev.questions[prev.currentQuestionIndex];
 
-      // NEW: Points calculation with anti-cheat enforcement
-      const updatedAnswers = roundState.answers.map(a => {
-        // If hasCheated is true, they get 0 points regardless of correctness
-        const points = a.hasCheated
-          ? 0
-          : calculateScore(currentQ.round, !!a.isCorrect, a.isWagered);
-
+      const updatedAnswers = roundState.answers.map((a) => {
+        const points = a.hasCheated ? 0 : calculateScore(currentQ.round, !!a.isCorrect, a.isWagered);
         return { ...a, pointsAwarded: points };
       });
 
@@ -372,8 +374,8 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
       const newRounds = [...prev.rounds];
       newRounds[roundIdx] = updatedRoundState;
 
-      const refinedTeams = prev.teams.map(t => {
-        const ans = updatedAnswers.find(a => a.teamId === t.id);
+      const refinedTeams = prev.teams.map((t) => {
+        const ans = updatedAnswers.find((a) => a.teamId === t.id);
         const pts = ans?.pointsAwarded ?? 0;
         const newRoundScores = [...t.roundScores];
         while (newRoundScores.length < currentQ.round) newRoundScores.push(0);
@@ -383,7 +385,7 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
         return {
           ...t,
           score: t.score + pts,
-          roundScores: newRoundScores
+          roundScores: newRoundScores,
         };
       });
 
@@ -396,13 +398,13 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
           rounds: newRounds,
           teams: refinedTeams,
           currentQuestionIndex: nextIndex,
-          phase: 'grading'
+          phase: 'grading',
         };
       }
 
       const roundQuestionsIndices = prev.questions
-        .map((q, i) => q.round === currentQ.round ? i : -1)
-        .filter(i => i !== -1);
+        .map((q, i) => (q.round === currentQ.round ? i : -1))
+        .filter((i) => i !== -1);
       const firstIndexInRound = roundQuestionsIndices[0];
 
       return {
@@ -410,13 +412,13 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
         rounds: newRounds,
         teams: refinedTeams,
         phase: 'reveal',
-        currentQuestionIndex: firstIndexInRound
+        currentQuestionIndex: firstIndexInRound,
       };
     });
   }, []);
 
   const advanceFromReveal = useCallback(() => {
-    setGame(prev => {
+    setGame((prev) => {
       const currentQ = prev.questions[prev.currentQuestionIndex];
       const nextIndex = prev.currentQuestionIndex + 1;
       const nextQ = prev.questions[nextIndex];
@@ -425,22 +427,17 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
         return {
           ...prev,
           currentQuestionIndex: nextIndex,
-          phase: 'reveal'
+          phase: 'reveal',
         };
       }
 
-      // Automatically branch to Lottery or Leaderboard instead of the Adjustment phase
       if (LEADERBOARD_ROUNDS.includes(currentQ.round)) {
         if (currentQ.round === 6 || !nextQ) {
           return { ...prev, phase: 'final-reveal', revealStep: 0 };
         }
-        
-        // --- ADDED: Intercept for Lottery after R2 & R4 ---
         if (currentQ.round === 2 || currentQ.round === 4) {
           return { ...prev, phase: 'lottery' };
         }
-        // --------------------------------------------------
-
         return { ...prev, phase: 'leaderboard' };
       }
 
@@ -448,48 +445,48 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
     });
   }, []);
 
-  const adjustTeamScore = useCallback(async (teamId: string, pointDelta: number, specificRoundIndex?: number) => {
-    const db = getFirestore();
-    const gameRef = doc(db, 'games', sessionId);
+  const adjustTeamScore = useCallback(
+    async (teamId: string, pointDelta: number, specificRoundIndex?: number) => {
+      const db = getFirestore();
+      const gameRef = doc(db, 'games', sessionId);
 
-    // Read the freshest state directly from Firestore so rapid clicks
-    // never race against each other through stale local state.
-    const snap = await getDoc(gameRef);
-    if (!snap.exists()) return;
+      const snap = await getDoc(gameRef);
+      if (!snap.exists()) return;
 
-    const current = snap.data() as LiveGameState;
+      const current = snap.data() as LiveGameState;
 
-    let roundIndex = specificRoundIndex;
-    if (roundIndex === undefined) {
-      const currentQ = current.questions[current.currentQuestionIndex];
-      if (!currentQ) return;
-      roundIndex = currentQ.round - 1;
-    }
+      let roundIndex = specificRoundIndex;
+      if (roundIndex === undefined) {
+        const currentQ = current.questions[current.currentQuestionIndex];
+        if (!currentQ) return;
+        roundIndex = currentQ.round - 1;
+      }
 
-    const updatedTeams = current.teams.map(t => {
-      if (t.id !== teamId) return t;
+      const updatedTeams = current.teams.map((t) => {
+        if (t.id !== teamId) return t;
 
-      const newRoundScores = [...t.roundScores];
-      while (newRoundScores.length <= roundIndex!) newRoundScores.push(0);
-      newRoundScores[roundIndex!] = (newRoundScores[roundIndex!] || 0) + pointDelta;
+        const newRoundScores = [...t.roundScores];
+        while (newRoundScores.length <= roundIndex!) newRoundScores.push(0);
+        newRoundScores[roundIndex!] = (newRoundScores[roundIndex!] || 0) + pointDelta;
 
-      return {
-        ...t,
-        score: t.score + pointDelta,
-        roundScores: newRoundScores,
-      };
-    });
+        return {
+          ...t,
+          score: t.score + pointDelta,
+          roundScores: newRoundScores,
+        };
+      });
 
-    // Write the full teams array atomically — no diff, no race.
-    await updateDoc(gameRef, { teams: updatedTeams });
+      await updateDoc(gameRef, { teams: updatedTeams });
 
-    // Also update local state so the UI reflects instantly without waiting
-    // for the Firestore snapshot to come back.
-    setGame(prev => ({ ...prev, teams: updatedTeams }));
-  }, [sessionId]);
+      // Prevent the persistence effect from writing again
+      isRemoteUpdate.current = true;
+      setGame((prev) => ({ ...prev, teams: updatedTeams }));
+    },
+    [sessionId]
+  );
 
   const advanceFromLeaderboard = useCallback(() => {
-    setGame(prev => {
+    setGame((prev) => {
       const nextIndex = prev.currentQuestionIndex + 1;
       if (nextIndex >= prev.questions.length) return { ...prev, phase: 'finished' };
       return advanceToNextQuestion(prev);
@@ -504,52 +501,50 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
   }, [sessionId, packId, packName, questions]);
 
   const advanceFromLottery = useCallback(() => {
-    setGame(prev => ({ ...prev, phase: 'leaderboard' }));
+    setGame((prev) => ({ ...prev, phase: 'leaderboard' }));
   }, []);
 
   const initializeLottery = useCallback((min: number, max: number) => {
-    setGame(prev => {
-      // Create new pool containing numbers from min to max
+    setGame((prev) => {
       const remainingPool = Array.from({ length: max - min + 1 }, (_, i) => min + i);
-      
       return {
         ...prev,
         lotteryState: {
           min,
           max,
           remainingPool,
-          currentDrawnNumber: null
-        }
+          currentDrawnNumber: null,
+        },
       };
     });
   }, []);
 
   const drawLotteryNumber = useCallback(() => {
-    setGame(prev => {
+    setGame((prev) => {
       if (!prev.lotteryState || prev.lotteryState.remainingPool.length === 0) {
         return prev;
       }
-      
       const pool = [...prev.lotteryState.remainingPool];
       const randomIndex = Math.floor(Math.random() * pool.length);
       const drawnNumber = pool[randomIndex];
-      
-      // Remove drawn number from the pool
       pool.splice(randomIndex, 1);
-      
       return {
         ...prev,
         lotteryState: {
           ...prev.lotteryState,
           remainingPool: pool,
-          currentDrawnNumber: drawnNumber
-        }
+          currentDrawnNumber: drawnNumber,
+        },
       };
     });
   }, []);
 
   const updateRevealStep = useCallback((step: number) => {
-    setGame(prev => ({ ...prev, revealStep: step }));
+    setGame((prev) => ({ ...prev, revealStep: step }));
+  }, []);
+
+  const updateRuleIndex = useCallback((index: number) => {
+    setGame((prev) => ({ ...prev, currentRuleIndex: index }));
   }, []);
 
   return {
@@ -561,7 +556,7 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
     startGame,
     advanceToRoundRules,
     startRound,
-    startTimer, // EXPOSED
+    startTimer,
     stopTimer,
     finishQuestion,
     advanceFromAnswerCollection,
@@ -577,5 +572,6 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
     drawLotteryNumber,
     resetGame,
     updateRevealStep,
+    updateRuleIndex,
   };
 }

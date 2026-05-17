@@ -32,13 +32,49 @@ export function GameAudioController({
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [track, setTrack] = useState('');
-  const [isPlaying, setIsPlaying] = useState(false);
+  
+  const [isPlaying, setIsPlaying] = useState(() => {
+    return localStorage.getItem('quiz_audio_playing') === 'true';
+  });
+  
   const [error, setError] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   // Detect the exact moment timerActive flips ON so we can restart music from 0
   const prevTimerActive = useRef(false);
+
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const [localVolume, setLocalVolume] = useState(() => {
+    const saved = localStorage.getItem('quiz_audio_volume');
+    return saved ? parseFloat(saved) : volume;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('quiz_audio_volume', localVolume.toString());
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'quiz_audio_volume' && e.newValue) {
+        setLocalVolume(parseFloat(e.newValue));
+      }
+      if (e.key === 'quiz_audio_playing' && e.newValue) {
+        const shouldPlay = e.newValue === 'true';
+        if (shouldPlay && !isPlaying && audioRef.current) {
+          audioRef.current.play().then(() => {
+             setIsPlaying(true);
+             setError(null);
+          }).catch((err) => {
+             setIsPlaying(false);
+             if (err.name === 'NotAllowedError') setError("Click Play");
+          });
+        } else if (!shouldPlay && isPlaying && audioRef.current) {
+          audioRef.current.pause();
+          setIsPlaying(false);
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [localVolume, isPlaying]);
 
   useEffect(() => {
     const newTrack = MUSIC_MAP[phase] || '';
@@ -99,7 +135,7 @@ export function GameAudioController({
       audio.currentTime = 0;
     }
 
-    audio.volume = isMuted || forceMuted ? 0 : volume;
+    audio.volume = isMuted || forceMuted ? 0 : localVolume;
 
     const timerJustStarted = timerActive && !prevTimerActive.current;
     prevTimerActive.current = timerActive;
@@ -138,28 +174,52 @@ export function GameAudioController({
       }
       setIsPlaying(false);
     }
-  }, [blobUrl, isMuted, volume, timerActive, phase, hasMediaContent, forceMuted]);
+  }, [blobUrl, isMuted, localVolume, timerActive, phase, hasMediaContent, forceMuted]);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
+      localStorage.setItem('quiz_audio_playing', 'false');
     } else {
-      audioRef.current.play().catch(() => { });
-      setIsPlaying(true);
-      setError(null);
+      audioRef.current.play().then(() => {
+        setIsPlaying(true);
+        setError(null);
+        localStorage.setItem('quiz_audio_playing', 'true');
+      }).catch(() => { });
     }
   };
 
   const toggleMute = () => {
     setIsMuted(!isMuted);
-    if (audioRef.current) audioRef.current.volume = !isMuted ? 0 : volume;
+    if (audioRef.current) audioRef.current.volume = !isMuted ? 0 : localVolume;
   };
 
   return (
     <>
       <audio ref={audioRef} loop onError={(e) => console.error("Audio tag error:", e)} />
+
+      {/* Auto-play Unlock Overlay for Projector */}
+      {hideControls && error === "Click Play" && (
+        <div 
+          className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center cursor-pointer"
+          onClick={() => {
+            if (audioRef.current) {
+              audioRef.current.play().then(() => {
+                setIsPlaying(true);
+                setError(null);
+                localStorage.setItem('quiz_audio_playing', 'true');
+              }).catch(console.error);
+            }
+          }}
+        >
+          <div className="bg-card/90 px-8 py-6 rounded-2xl border-2 border-primary shadow-[0_0_30px_rgba(173,187,255,0.3)] text-center animate-pulse">
+            <h2 className="text-primary font-bungee text-2xl mb-2">AUDIO BLOCKED</h2>
+            <p className="text-white font-sugo tracking-wider">Click anywhere to enable Projector audio</p>
+          </div>
+        </div>
+      )}
 
       {/* --- AUDIO CONTROLS (NO TEXT) --- */}
       {!hideControls && (
@@ -181,18 +241,89 @@ export function GameAudioController({
             )}
           </button>
 
-          {/* Mute/Volume Button */}
-          <button
-            onClick={toggleMute}
-            disabled={!track}
-            className="flex items-center justify-center transition-all disabled:opacity-50 opacity-80 hover:opacity-100 hover:scale-110 active:scale-95"
-          >
-            {isMuted ? (
-              <img src="/mute.svg" alt="Muted" className="h-[20px] w-auto pointer-events-none" />
-            ) : (
-              <img src="/volume.svg" alt="Volume" className="h-[20px] w-auto pointer-events-none" />
+          {/* Mute/Volume Button with Slider */}
+          <div style={{ position: 'relative' }} className="flex items-center justify-center ml-2">
+            {showVolumeSlider && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 'calc(100% + 8px)',
+                  right: 0,
+                  width: '44px',
+                  height: '180px',
+                  background: 'hsl(var(--card))',
+                  border: '1px solid hsl(var(--primary))',
+                  borderRadius: '12px',
+                  padding: '10px 0',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '6px',
+                  zIndex: 50,
+                  overflow: 'hidden'
+                }}
+              >
+                <style>{`
+                  .vol-track {
+                    writing-mode: vertical-lr;
+                    direction: rtl;
+                    -webkit-appearance: none;
+                    appearance: none;
+                    width: 4px;
+                    flex: 1;
+                    background: rgba(173,187,255,0.15);
+                    border-radius: 4px;
+                    cursor: pointer;
+                    outline: none;
+                  }
+                  .vol-track::-webkit-slider-thumb {
+                    -webkit-appearance: none;
+                    appearance: none;
+                    width: 18px;
+                    height: 18px;
+                    border-radius: 50%;
+                    background: hsl(var(--primary));
+                    cursor: grab;
+                    margin-left: -7px;
+                  }
+                  .vol-track::-moz-range-thumb {
+                    width: 18px;
+                    height: 18px;
+                    border-radius: 50%;
+                    background: hsl(var(--primary));
+                    border: none;
+                    cursor: grab;
+                  }
+                `}</style>
+                <div className="text-primary font-bungee text-[10px] tracking-widest">
+                  {Math.round(localVolume * 100)}%
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={localVolume}
+                  onChange={(e) => {
+                    setLocalVolume(parseFloat(e.target.value));
+                    setIsMuted(false);
+                  }}
+                  className="vol-track"
+                />
+              </div>
             )}
-          </button>
+            <button
+              onClick={() => setShowVolumeSlider(!showVolumeSlider)}
+              disabled={!track}
+              className="flex items-center justify-center transition-all disabled:opacity-50 opacity-80 hover:opacity-100 hover:scale-110 active:scale-95"
+            >
+              {isMuted || localVolume === 0 ? (
+                <img src="/mute.svg" alt="Muted" className="h-[20px] w-auto pointer-events-none" />
+              ) : (
+                <img src="/volume.svg" alt="Volume" className="h-[20px] w-auto pointer-events-none" />
+              )}
+            </button>
+          </div>
         </footer>
       )}
     </>

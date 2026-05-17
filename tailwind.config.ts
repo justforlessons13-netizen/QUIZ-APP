@@ -113,6 +113,28 @@ export default {
           "0%": { transform: "translateY(0) rotate(0deg)", opacity: "1" },
           "100%": { transform: "translateY(100vh) rotate(720deg)", opacity: "0" },
         },
+        "bob": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-5px)" }
+        },
+        "borderPulse": {
+          "0%, 100%": {
+            boxShadow: "0 0 8px hsla(185, 90%, 50%, 0.4), 0 0 20px hsla(185, 90%, 50%, 0.15)",
+            borderColor: "hsl(185, 90%, 50%)"
+          },
+          "50%": {
+            boxShadow: "0 0 16px hsla(185, 90%, 50%, 0.7), 0 0 36px hsla(185, 90%, 50%, 0.3)",
+            borderColor: "hsl(185, 90%, 70%)"
+          }
+        },
+        "iconPop": {
+          "0%, 100%": { transform: "scale(1)" },
+          "50%": { transform: "scale(1.25)" }
+        },
+        "blinkSlow": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.2" }
+        }
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -120,6 +142,10 @@ export default {
         "glow-pulse": "glow-pulse 2s ease-in-out infinite",
         "float": "float 3s ease-in-out infinite",
         "confetti": "confetti-fall 3s ease-out forwards",
+        "bob": "bob 2.6s ease-in-out infinite",
+        "borderPulse": "borderPulse 2s ease-in-out infinite",
+        "iconPop": "iconPop 2s ease-in-out infinite",
+        "blinkSlow": "blinkSlow 1.1s ease-in-out infinite",
       },
     },
   },

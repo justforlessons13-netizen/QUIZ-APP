@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getFirestore, doc, getDoc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
@@ -8,6 +8,7 @@ import { toast } from '@/hooks/use-toast';
 import { PlayerGame } from '@/components/game/PlayerGame';
 import { TEAM_EMOJIS, LiveGameState } from '@/types/live-game';
 import { Emoji3D } from '@/components/ui/Emoji3D';
+import { DynamicBackground } from '@/components/layout/DynamicBackground';
 
 // ─── localStorage key ─────────────────────────────────────────────────────────
 const STORAGE_KEY = 'qgame-player-session';
@@ -17,6 +18,7 @@ interface SavedSession {
   teamId: string;
   teamName: string;
   code: string;
+  emoji: string;
 }
 
 function saveSession(session: SavedSession) {
@@ -49,6 +51,7 @@ export default function JoinGame() {
   const [found, setFound] = useState<{ sessionId: string; packName: string } | null>(null);
   const [joined, setJoined] = useState<SavedSession | null>(null);
   const [restoring, setRestoring] = useState(true);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // ── On mount: restore session from localStorage ──
   useEffect(() => {
@@ -167,6 +170,7 @@ export default function JoinGame() {
         teamId,
         teamName: teamName.trim(),
         code: code.toUpperCase(),
+        emoji: selectedEmoji,
       };
 
       // ── Save to localStorage so reload restores the session ──
@@ -199,25 +203,31 @@ export default function JoinGame() {
   // ── Active game view ──
   if (joined) {
     return (
-      <div className="min-h-screen bg-radial-dark flex flex-col">
-        <header className="flex items-center justify-between p-4 border-b border-border/50">
-          <span className="text-sm text-muted-foreground font-bungee tracking-wide uppercase">
-            {joined.teamName}
-          </span>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground/60 font-mono">
+      <div className="min-h-screen relative flex flex-col text-foreground">
+        <DynamicBackground phase="team-setup" />
+        <header className="flex items-center justify-between p-4 border-b border-border/20 bg-black/40 backdrop-blur-md relative z-10">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 flex items-center justify-center bg-card rounded-md border border-border/50">
+              <Emoji3D emoji={joined.emoji || '🎮'} className="w-6 h-6" />
+            </div>
+            <span className="text-sm text-white font-bungee tracking-wide uppercase truncate max-w-[140px]">
+              {joined.teamName}
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-muted-foreground font-mono">
               {joined.code}
             </span>
             <button
               onClick={handleLeave}
-              className="flex items-center gap-1 text-xs text-muted-foreground/50 hover:text-destructive transition-colors font-bungee uppercase tracking-wide"
+              className="flex items-center gap-1.5 text-xs text-red-500/80 hover:text-red-500 transition-colors font-bungee uppercase tracking-wide bg-red-500/10 px-2 py-1 rounded-md"
             >
               <LogOut className="w-3.5 h-3.5" />
               Leave
             </button>
           </div>
         </header>
-        <main className="flex-1 flex items-center justify-center p-4">
+        <main className="flex-1 flex flex-col relative z-10 overflow-hidden">
           <PlayerGame
             sessionId={joined.sessionId}
             teamId={joined.teamId}
@@ -230,78 +240,125 @@ export default function JoinGame() {
 
   // ── Join flow ──
   return (
-    <div className="min-h-screen bg-radial-dark flex flex-col">
-      <header className="flex items-center p-4 border-b border-border/50">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
+    <div className="min-h-screen relative flex flex-col text-foreground">
+      <DynamicBackground phase="team-setup" />
+      <header className="flex items-center p-4 relative z-10">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-white hover:bg-white/10">
           <ArrowLeft className="w-4 h-4 mr-1" /> Home
         </Button>
       </header>
 
-      <main className="flex-1 flex items-center justify-center p-4">
+      <main className="flex-1 flex items-start mt-4 md:items-center md:mt-0 justify-center p-2 relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-center gap-6 w-full max-w-sm mx-auto"
+          className="flex flex-col items-center gap-4 w-full max-w-[480px] mx-auto"
         >
           <div className="text-center">
-            <h1 className="text-3xl font-bold text-primary">Join Game</h1>
+            <h1 className="text-4xl font-bungee text-primary drop-shadow-[0_0_15px_rgba(0,255,255,0.5)]">Join Game</h1>
             <p className="text-sm text-muted-foreground mt-2">
-              Enter the game code shown on the host's screen
+              {found ? "Choose your team and avatar" : "Enter the game code shown on the host's screen"}
             </p>
           </div>
 
           {!found ? (
             <>
-              <input
-                type="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="GAME CODE"
-                maxLength={4}
-                className="w-full px-6 py-4 bg-card border border-border rounded-xl text-foreground text-center text-3xl font-mono tracking-[0.4em] placeholder:text-muted-foreground placeholder:text-lg placeholder:tracking-normal focus:outline-none focus:ring-2 focus:ring-primary/50"
-                autoFocus
-                onKeyDown={(e) => e.key === 'Enter' && code.length >= 4 && handleLookup()}
-              />
-              <Button
-                onClick={() => handleLookup()}
-                disabled={code.length < 4}
-                className="w-full py-3 h-auto text-base font-bold rounded-xl"
-              >
-                Find Game
-              </Button>
+              <div className="flex gap-4 justify-center w-full">
+                {[0, 1, 2, 3].map((index) => (
+                  <input
+                    key={index}
+                    ref={(el) => (inputRefs.current[index] = el)}
+                    type="text"
+                    value={code[index] || ''}
+                    onChange={(e) => {
+                      const val = e.target.value.toUpperCase();
+                      // Handle paste
+                      if (val.length > 1) {
+                        const pasted = val.replace(/[^A-Z0-9]/g, '').slice(0, 4);
+                        if (pasted) {
+                          setCode(pasted);
+                          if (pasted.length === 4) {
+                            handleLookup(pasted);
+                          } else {
+                            inputRefs.current[pasted.length]?.focus();
+                          }
+                        }
+                        return;
+                      }
+                      const newArr = [0, 1, 2, 3].map(idx => code[idx] || '');
+                      newArr[index] = val;
+                      const newCode = newArr.join('');
+                      setCode(newCode);
+                      if (val && index < 3) {
+                        inputRefs.current[index + 1]?.focus();
+                      }
+                      if (newCode.length === 4 && val) {
+                        handleLookup(newCode);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Backspace') {
+                        if (!code[index] && index > 0) {
+                          inputRefs.current[index - 1]?.focus();
+                        }
+                      } else if (e.key === 'Enter') {
+                        if (code.length >= 4) {
+                          handleLookup();
+                        }
+                      }
+                    }}
+                    maxLength={4} // Allow paste to bring in more, but manually slice it
+                    className="w-16 h-20 bg-card border-2 border-primary rounded-xl text-primary text-center text-4xl font-bungee shadow-[0_0_15px_rgba(0,255,255,0.2)] focus:shadow-[0_0_20px_rgba(0,255,255,0.5)] focus:outline-none transition-all uppercase"
+                    autoFocus={index === 0}
+                  />
+                ))}
+              </div>
             </>
           ) : (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="w-full space-y-5"
+              className="w-full space-y-4"
             >
-              <div className="p-4 rounded-xl bg-card border border-primary/20 text-center">
-                <p className="text-sm text-muted-foreground">Found game</p>
-                <p className="text-xl font-bold text-primary mt-1">{found.packName}</p>
+              <div className="p-4 rounded-xl bg-black/60 border border-success/50 shadow-[0_0_15px_rgba(0,255,0,0.15)] flex flex-col items-center justify-center text-center">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                  <span className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Game found</span>
+                </div>
+                <p className="text-2xl font-bungee text-primary">{found.packName}</p>
               </div>
 
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground text-center font-medium">Choose your avatar</p>
-                <div className="flex flex-wrap justify-center gap-3 w-full">
-                  {TEAM_EMOJIS.map(emoji => {
+              <div className="space-y-2">
+                <p className="text-xs text-primary text-center font-bungee uppercase tracking-widest">Choose your avatar</p>
+                <div className="grid grid-cols-6 gap-2 w-full max-w-[460px] mx-auto">
+                  {TEAM_EMOJIS.map((emoji, idx) => {
                     const isTaken = takenEmojis.includes(emoji);
                     return (
-                      <button
+                      <motion.button
                         key={emoji}
+                        initial={{ y: 0 }}
+                        animate={isTaken ? {} : { y: [0, -5, 0] }}
+                        transition={{
+                          duration: 2,
+                          repeat: Infinity,
+                          ease: "easeInOut",
+                          delay: idx * 0.1,
+                        }}
                         onClick={() => !isTaken && setSelectedEmoji(emoji)}
                         disabled={isTaken}
-                        className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all ${
+                        className={`aspect-square rounded-xl flex items-center justify-center transition-all ${
                           isTaken 
-                            ? 'bg-card/30 border border-border/20 opacity-30 cursor-not-allowed grayscale' 
+                            ? 'bg-card/20 border border-border/10 opacity-30 cursor-not-allowed grayscale' 
                             : selectedEmoji === emoji
-                              ? 'bg-primary/20 border-2 border-primary scale-110 shadow-[0_0_15px_rgba(var(--primary),0.3)]'
-                              : 'bg-card border border-border hover:border-primary/40'
+                              ? 'bg-card border-2 border-primary scale-110 animate-borderPulse'
+                              : 'bg-card border border-border hover:border-primary/40 hover:bg-card/80'
                           }`}
                         title={isTaken ? "Already taken" : undefined}
                       >
-                        <Emoji3D emoji={emoji} />
-                      </button>
+                        <div className="w-[60%] h-[60%] flex items-center justify-center">
+                          <Emoji3D emoji={emoji} className="w-full h-full object-contain" />
+                        </div>
+                      </motion.button>
                     );
                   })}
                 </div>
@@ -311,24 +368,25 @@ export default function JoinGame() {
                 type="text"
                 value={teamName}
                 onChange={(e) => setTeamName(e.target.value)}
-                placeholder="Your team name..."
-                className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 text-center text-lg"
+                placeholder="YOUR TEAM NAME"
+                className="w-full px-4 py-3 bg-card border-2 border-primary rounded-xl text-primary text-center text-xl font-bungee shadow-[0_0_15px_rgba(0,255,255,0.2)] placeholder:text-primary/30 focus:shadow-[0_0_20px_rgba(0,255,255,0.5)] focus:outline-none transition-all uppercase"
                 autoFocus
                 onKeyDown={(e) => e.key === 'Enter' && teamName.trim() && handleJoin()}
               />
 
               <Button
                 onClick={handleJoin}
-                disabled={!teamName.trim()}
-                className="w-full py-3 h-auto text-base font-bold rounded-xl"
+                disabled={!teamName.trim() || !selectedEmoji}
+                className="w-full py-4 h-auto text-lg font-bungee rounded-xl bg-transparent border-2 border-primary text-primary hover:bg-primary/10 animate-borderPulse disabled:opacity-50 disabled:animate-none transition-all"
               >
-                <LogIn className="w-5 h-5 mr-2" />
+                <LogIn className="w-5 h-5 mr-3" />
                 Join Game
               </Button>
             </motion.div>
           )}
         </motion.div>
       </main>
+
     </div>
   );
 }

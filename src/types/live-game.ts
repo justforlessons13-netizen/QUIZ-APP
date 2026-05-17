@@ -55,6 +55,7 @@ export interface LiveGameState {
   createdAt: string;
   gameCode: string;     // <--- ADDED: Stored in Firebase!
   revealStep?: number;  // <--- RESTORED: Projector podium sync
+  currentRuleIndex?: number; // <--- ADDED: For Game Rules sync
   lotteryState?: {
     min: number;
     max: number;
@@ -83,5 +84,6 @@ export function createLiveGame(sessionId: string, packId: string, packName: stri
     createdAt: new Date().toISOString(),
     gameCode: Math.random().toString(36).substring(2, 6).toUpperCase(), // <--- Generates ONCE when DB doc is created
     revealStep: 0,
+    currentRuleIndex: 0,
   };
 }

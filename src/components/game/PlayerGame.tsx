@@ -5,7 +5,10 @@ import { LiveGameState, LiveTeam } from '@/types/live-game';
 import { Question } from '@/types/game';
 import { Button } from '@/components/ui/button';
 import { Emoji3D } from '@/components/ui/Emoji3D';
-import { getFirestore, doc, onSnapshot, updateDoc, runTransaction } from 'firebase/firestore';
+import { DynamicBackground } from '@/components/layout/DynamicBackground';
+import { getFirestore, doc, onSnapshot, runTransaction } from 'firebase/firestore';
+
+import { GAME_RULES } from '@/components/host-game/GameRulesDisplay';
 
 interface PlayerGameProps {
   sessionId: string;
@@ -19,10 +22,9 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
   const [myWager, setMyWager] = useState(false);
 
   // ── Submission state ──────────────────────────────────────────────────────
-  // "idle" | "pending" | "confirmed" | "failed"
   const [submitState, setSubmitState] = useState<'idle' | 'pending' | 'confirmed' | 'failed'>('idle');
-  const submittedAnswerRef = useRef<string>('');   // remember what was submitted
-  const submitInFlight = useRef(false);             // hard guard against double-taps
+  const submittedAnswerRef = useRef<string>('');
+  const submitInFlight = useRef(false);
 
   const [lastQuestionIndex, setLastQuestionIndex] = useState(-1);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -52,22 +54,17 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
     const serverTime = game.timeLeft;
 
     if (!serverActive) {
-      // Timer stopped — snap to server value and kill any interval
       timerActiveRef.current = false;
       localTimeRef.current = serverTime;
       setDisplayTime(serverTime);
       return;
     }
 
-    // Timer is active:
-    // If we weren't running yet, start fresh from server time
     if (!timerActiveRef.current) {
       timerActiveRef.current = true;
       localTimeRef.current = serverTime;
       setDisplayTime(serverTime);
     } else {
-      // Already running — only sync if server is more than 2s away from local
-      // (handles reconnects / drift without causing double-ticks)
       const drift = localTimeRef.current - serverTime;
       if (Math.abs(drift) > 2) {
         localTimeRef.current = serverTime;
@@ -76,7 +73,6 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
     }
   }, [game?.timerActive, game?.timeLeft]);
 
-  // The single interval — always running, self-gates via ref
   useEffect(() => {
     const interval = setInterval(() => {
       if (!timerActiveRef.current) return;
@@ -87,7 +83,7 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, []); // mount once — never re-creates
+  }, []);
 
   // ── Anti-cheat: tab-switch detection ─────────────────────────────────────
   useEffect(() => {
@@ -151,12 +147,10 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
   // ── Submit answer ─────────────────────────────────────────────────────────
   const submitAnswer = useCallback(async () => {
     if (!game || !myAnswer.trim()) return;
-    if (submitInFlight.current) return;   // hard guard — ignore double-taps
-    if (submitState !== 'idle') return;   // already submitted or pending
+    if (submitInFlight.current) return;
+    if (submitState !== 'idle') return;
 
     submitInFlight.current = true;
-
-    // 1. Optimistic UI — button disappears immediately
     setSubmitState('pending');
     submittedAnswerRef.current = myAnswer.trim();
 
@@ -164,29 +158,28 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
     const gameRef = doc(db, 'games', sessionId);
 
     try {
-      // 2. Read current rounds array from local game state (already in memory)
-      //    and patch it directly — no round-trip read needed.
-      const currentData = game;
-      const roundIdx = currentData.rounds.findIndex(
-        r => r.questionIndex === currentData.currentQuestionIndex
-      );
+      await runTransaction(db, async (transaction) => {
+        const gameDoc = await transaction.get(gameRef);
+        if (!gameDoc.exists()) throw new Error('Game not found');
 
-      if (roundIdx === -1) {
-        // Round state doesn't exist yet (edge case), fall back to transaction
-        throw new Error('round_not_found');
-      }
+        const data = gameDoc.data() as LiveGameState;
+        const roundIdx = data.rounds.findIndex(
+          (r) => r.questionIndex === data.currentQuestionIndex
+        );
+        if (roundIdx === -1) throw new Error('Round not found');
 
-      const newRounds = currentData.rounds.map((r, i) => {
-        if (i !== roundIdx) return r;
-        const exists = r.answers.some(a => a.teamId === teamId);
-        const newAnswers = exists
-          ? r.answers.map(a =>
+        const newRounds = [...data.rounds];
+        const round = { ...newRounds[roundIdx] };
+        const exists = round.answers.some((a) => a.teamId === teamId);
+
+        round.answers = exists
+          ? round.answers.map((a) =>
             a.teamId === teamId
               ? { ...a, answer: myAnswer.trim(), isWagered: myWager }
               : a
           )
           : [
-            ...r.answers,
+            ...round.answers,
             {
               teamId,
               answer: myAnswer.trim(),
@@ -195,69 +188,24 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
               pointsAwarded: 0,
             },
           ];
-        return { ...r, answers: newAnswers };
+
+        newRounds[roundIdx] = round;
+        transaction.update(gameRef, { rounds: newRounds });
       });
 
-      // 3. Single updateDoc write — much faster than a transaction
-      await updateDoc(gameRef, { rounds: newRounds });
-
       setSubmitState('confirmed');
-    } catch (err: any) {
+    } catch (err) {
       console.error('Submit failed:', err);
-
-      if (err?.message === 'round_not_found') {
-        // Fall back to transaction for the edge case
-        try {
-          await runTransaction(db, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) return;
-            const data = gameDoc.data() as LiveGameState;
-            const rIdx = data.rounds.findIndex(
-              r => r.questionIndex === data.currentQuestionIndex
-            );
-            if (rIdx === -1) return;
-            const newRounds = [...data.rounds];
-            const round = { ...newRounds[rIdx] };
-            const exists = round.answers.some(a => a.teamId === teamId);
-            round.answers = exists
-              ? round.answers.map(a =>
-                a.teamId === teamId
-                  ? { ...a, answer: myAnswer.trim(), isWagered: myWager }
-                  : a
-              )
-              : [
-                ...round.answers,
-                {
-                  teamId,
-                  answer: myAnswer.trim(),
-                  isCorrect: null,
-                  isWagered: myWager,
-                  pointsAwarded: 0,
-                },
-              ];
-            newRounds[rIdx] = round;
-            transaction.update(gameRef, { rounds: newRounds });
-          });
-          setSubmitState('confirmed');
-        } catch (fallbackErr) {
-          console.error('Fallback transaction also failed:', fallbackErr);
-          setSubmitState('failed');
-          submitInFlight.current = false;
-        }
-      } else {
-        setSubmitState('failed');
-        submitInFlight.current = false;
-      }
+      setSubmitState('failed');
+      submitInFlight.current = false;
     }
   }, [game, myAnswer, myWager, sessionId, teamId, submitState]);
 
-  // Allow retry if failed
   const retrySubmit = () => {
     setSubmitState('idle');
     submitInFlight.current = false;
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
   if (!game) {
     return (
       <div className="flex flex-col items-center gap-4 p-8">
@@ -273,28 +221,157 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
   const isMCQ = currentQuestion?.type === 'mcq' && isFinalRound;
   const isSubmitted = submitState === 'confirmed' || submitState === 'pending';
 
-  // Waiting for game to start
-  if (game.phase === 'team-setup' || game.phase === 'game-rules') {
+  // ── Team Setup Phase — IMPROVED ───────────────────────────────────────────
+  if (game.phase === 'team-setup') {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col items-center gap-6 p-8 text-center"
-      >
-        <motion.div
-          animate={{ scale: [1, 1.05, 1] }}
-          transition={{ repeat: Infinity, duration: 2 }}
-          className="text-6xl"
-        >
-          {myTeam?.emoji ? <Emoji3D emoji={myTeam.emoji} className="w-8 h-8" /> : '🎮'}
-        </motion.div>
-        <h2 className="text-2xl font-bold text-foreground">{teamName}</h2>
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          <span>Waiting for host to start...</span>
+      <div className="flex-1 w-full flex flex-col items-center justify-center p-6 md:p-8 h-full relative overflow-hidden">
+        {/* Centered content with orbit animation */}
+        <div className="flex flex-col items-center justify-center gap-5 w-full max-w-md mx-auto">
+
+          {/* Orbit rings around team emoji */}
+          <div className="relative w-40 h-40 md:w-48 md:h-48 flex items-center justify-center mb-2">
+            {/* Outer ring */}
+            <div className="absolute inset-0 rounded-full border border-primary/10 animate-[spin_8s_linear_infinite]" />
+            {/* Middle ring */}
+            <div className="absolute inset-4 rounded-full border border-primary/15 animate-[spin_6s_linear_infinite_reverse]" />
+            {/* Inner ring */}
+            <div className="absolute inset-8 rounded-full border border-primary/20 animate-[spin_4s_linear_infinite]" />
+
+            {/* Center emoji */}
+            <motion.div
+              animate={{ y: [0, -8, 0] }}
+              transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+              className="relative z-10 text-6xl md:text-7xl filter drop-shadow-[0_0_20px_rgba(0,212,255,0.3)]"
+            >
+              {myTeam?.emoji || '🎮'}
+            </motion.div>
+
+            {/* Orbiting dots */}
+            <div className="absolute inset-0 animate-[spin_12s_linear_infinite]">
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-primary/60 shadow-[0_0_8px_rgba(0,212,255,0.5)]" />
+            </div>
+            <div className="absolute inset-2 animate-[spin_10s_linear_infinite_reverse]">
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-accent/60 shadow-[0_0_6px_rgba(255,107,157,0.5)]" />
+            </div>
+          </div>
+
+          {/* Team name */}
+          <div className="text-center">
+            <h2 className="text-2xl md:text-3xl font-bungee text-white tracking-wide drop-shadow-[0_0_15px_rgba(0,255,255,0.3)]">
+              Team {teamName}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              {game.teams.length} {game.teams.length === 1 ? 'team' : 'teams'} in lobby
+            </p>
+          </div>
+
+          {/* Mini team list */}
+          {game.teams.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-1.5 max-w-xs mb-4">
+              {game.teams.slice(0, 6).map((t) => (
+                <div
+                  key={t.id}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs border ${t.id === teamId
+                      ? 'bg-primary/15 border-primary/30 text-primary'
+                      : 'bg-card border-border text-muted-foreground'
+                    }`}
+                >
+                  <span className="text-sm">{t.emoji}</span>
+                  {t.id === teamId && <span className="font-semibold pr-0.5">You</span>}
+                </div>
+              ))}
+              {game.teams.length > 6 && (
+                <div className="flex items-center px-2.5 py-1.5 rounded-full text-xs bg-card border-border text-muted-foreground font-semibold">
+                  +{game.teams.length - 6}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Pulsing dots */}
+          <div className="flex gap-2 mt-2">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="w-2 h-2 rounded-full bg-primary/30 animate-bounce"
+                style={{ animationDelay: `${i * 0.15}s`, animationDuration: '1.4s' }}
+              />
+            ))}
+          </div>
+
+          {/* Waiting message */}
+          <div className="text-center mt-2">
+            <p className="font-bungee text-sm md:text-base text-primary tracking-[0.15em]">
+              Waiting for Host
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Game will begin automatically
+            </p>
+          </div>
         </div>
-        <p className="text-sm text-muted-foreground/60">Get ready! 🧠</p>
-      </motion.div>
+      </div>
+    );
+  }
+
+  if (game.phase === 'game-rules') {
+    const currentRuleIndex = game.currentRuleIndex || 0;
+    const currentRule = GAME_RULES[currentRuleIndex] || GAME_RULES[0];
+
+    return (
+      <div className="flex-1 w-full flex flex-col items-center justify-center p-4 md:p-8 h-full relative overflow-hidden">
+        <motion.div
+          key={currentRuleIndex}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
+          className="w-full max-w-[480px] mx-auto flex flex-col items-center"
+        >
+          <div className="text-center mb-6">
+            <h1 className="text-3xl md:text-4xl font-bungee text-primary tracking-wide drop-shadow-[0_0_15px_rgba(0,255,255,0.4)]">
+              Game Rules
+            </h1>
+          </div>
+
+          <div className="w-full bg-card rounded-[14px] p-6 text-center relative shadow-lg" style={{ border: '1px solid rgba(173,187,255,0.09)' }}>
+            <div className="flex flex-col items-center gap-3">
+              <span style={{ fontSize: '32px', lineHeight: 1 }}>
+                {currentRule.emoji}
+              </span>
+              <h3 className="font-bungee text-[#adbbff] tracking-wide text-[14px] md:text-[15px]">
+                {currentRule.title}
+              </h3>
+              <p className="tracking-wide text-[11px] md:text-[12px]" style={{ color: 'rgba(173,187,255,0.45)' }}>
+                {currentRule.description}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 text-[11px] font-bungee tracking-widest text-muted-foreground opacity-60">
+            Rule {currentRuleIndex + 1} of {GAME_RULES.length}
+          </div>
+
+          <div className="flex gap-2 justify-center mt-3">
+            {GAME_RULES.map((_, idx) => {
+              const isActive = idx === currentRuleIndex;
+              const isSeen = idx < currentRuleIndex;
+              return (
+                <motion.div
+                  key={idx}
+                  animate={{ scale: isActive ? 1.2 : 1 }}
+                  className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${isActive ? 'bg-primary shadow-[0_0_8px_rgba(0,255,255,0.8)]' : ''}`}
+                  style={{
+                    backgroundColor: isActive ? undefined : isSeen ? 'rgba(173,187,255,0.35)' : 'rgba(173,187,255,0.15)'
+                  }}
+                />
+              );
+            })}
+          </div>
+
+          <div className="mt-8 text-[10px] font-bungee tracking-widest text-muted-foreground opacity-40 uppercase">
+            Follow along on the main screen
+          </div>
+        </motion.div>
+      </div>
     );
   }
 
@@ -483,8 +560,8 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
                       onClick={() => setMyAnswer(option)}
                       disabled={isTimeUp}
                       className={`p-4 rounded-xl border-2 text-sm font-medium transition-all duration-200 ${myAnswer === option
-                          ? 'border-primary bg-primary/15 text-primary'
-                          : 'border-border bg-card hover:border-primary/40 text-card-foreground'
+                        ? 'border-primary bg-primary/15 text-primary'
+                        : 'border-border bg-card hover:border-primary/40 text-card-foreground'
                         } ${isTimeUp ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {option}
@@ -599,10 +676,10 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.1 }}
                 className={`p-4 rounded-xl border bg-card/50 ${myAns.hasCheated
-                    ? 'border-red-500/50 bg-red-500/5'
-                    : myAns.isCorrect
-                      ? 'border-success/30'
-                      : 'border-destructive/30'
+                  ? 'border-red-500/50 bg-red-500/5'
+                  : myAns.isCorrect
+                    ? 'border-success/30'
+                    : 'border-destructive/30'
                   }`}
               >
                 <div className="flex justify-between items-start gap-3">
@@ -631,18 +708,18 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
                   </div>
                   <div
                     className={`flex flex-col items-center justify-center w-12 h-12 rounded-lg border ${myAns.hasCheated
-                        ? 'border-red-500/30 bg-red-500/10'
-                        : myAns.pointsAwarded > 0
-                          ? 'bg-success/10 border-success/30'
-                          : 'bg-card border-border'
+                      ? 'border-red-500/30 bg-red-500/10'
+                      : myAns.pointsAwarded > 0
+                        ? 'bg-success/10 border-success/30'
+                        : 'bg-card border-border'
                       }`}
                   >
                     <span
                       className={`text-lg font-bold ${myAns.hasCheated
-                          ? 'text-red-500'
-                          : myAns.pointsAwarded > 0
-                            ? 'text-success'
-                            : 'text-muted-foreground'
+                        ? 'text-red-500'
+                        : myAns.pointsAwarded > 0
+                          ? 'text-success'
+                          : 'text-muted-foreground'
                         }`}
                     >
                       {myAns.pointsAwarded > 0 ? '+' : ''}{myAns.pointsAwarded}
@@ -707,8 +784,8 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.1 }}
               className={`flex items-center gap-3 p-3 rounded-xl border ${team.id === teamId
-                  ? 'border-primary bg-primary/10'
-                  : 'border-border bg-card'
+                ? 'border-primary bg-primary/10'
+                : 'border-border bg-card'
                 }`}
             >
               <span className="text-lg font-bold text-muted-foreground w-8">#{i + 1}</span>
