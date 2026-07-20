@@ -16,8 +16,12 @@ jobs:
       - name: Build Project
         run: npm run build
         env:
-          # If you use environment variables for Firebase keys, add them here
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: my-app-e17be.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: my-app-e17be
+          VITE_FIREBASE_STORAGE_BUCKET: my-app-e17be.firebasestorage.app
+          VITE_FIREBASE_MESSAGING_SENDER_ID: '679812602133'
+          VITE_FIREBASE_APP_ID: 1:679812602133:web:06c3069b74265d2dbdb11c
 
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
