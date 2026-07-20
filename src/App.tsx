@@ -11,6 +11,9 @@ import JoinGame from "./pages/JoinGame";
 import NotFound from "./pages/NotFound";
 import AdminLogin from '@/pages/AdminLogin';
 import Printables from './pages/Printables';
+import BeeHostDashboard from './pages/BeeHostDashboard';
+import BeeGame from './pages/BeeGame';
+import BeeStageDevice from './pages/BeeStageDevice';
 
 const queryClient = new QueryClient();
 
@@ -29,6 +32,9 @@ const App = () => (
           <Route path="/admin" element={<AdminLogin />} />
           <Route path="/admin-login" element={<AdminLogin />} />
           <Route path="/printables" element={<Printables />} />
+          <Route path="/bee" element={<BeeHostDashboard />} />
+          <Route path="/bee/game" element={<BeeGame />} />
+          <Route path="/bee/stage" element={<BeeStageDevice />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

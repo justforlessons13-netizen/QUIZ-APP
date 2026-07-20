@@ -138,6 +138,19 @@ export default function Index() {
           >
             Printables
           </button>
+
+          {/* Secondary — Spelling Bee */}
+          <button
+            onClick={() => navigate('/bee')}
+            className="font-bungee uppercase tracking-wide text-[#adbbff] border border-[#adbbff]/40 bg-[#adbbff]/10 hover:bg-[#adbbff]/20 active:scale-95 transition-all leading-none pb-[2px]"
+            style={{
+              fontSize: 'clamp(13px, 1.2vw, 18px)',
+              padding: '10px 32px',
+              borderRadius: '6px',
+            }}
+          >
+            Spelling Bee
+          </button>
         </motion.div>
 
         {/* ── FEATURE CARDS ── */}

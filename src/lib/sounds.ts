@@ -29,8 +29,8 @@ export function unlockWebAudio() {
 
 const isProjector = () => typeof window !== 'undefined' && window.location.search.includes('projector=true');
 
-function playTone(freq: number, duration: number, type: OscillatorType = 'sine', gain = 0.15) {
-  if (!isProjector()) return;
+function playTone(freq: number, duration: number, type: OscillatorType = 'sine', gain = 0.15, force = false) {
+  if (!isProjector() && !force) return;
   const c = getCtx();
   const osc = c.createOscillator();
   const g = c.createGain();
@@ -43,8 +43,8 @@ function playTone(freq: number, duration: number, type: OscillatorType = 'sine',
   osc.stop(c.currentTime + duration);
 }
 
-function playNoise(duration: number, gain = 0.08) {
-  if (!isProjector()) return;
+function playNoise(duration: number, gain = 0.08, force = false) {
+  if (!isProjector() && !force) return;
   const c = getCtx();
   const bufferSize = c.sampleRate * duration;
   const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
@@ -84,25 +84,25 @@ export function playTimesUp() {
 }
 
 /** Correct answer chime — ascending two-note */
-export function playCorrect() {
-  playTone(523, 0.12, 'sine', 0.15); // C5
-  setTimeout(() => playTone(784, 0.2, 'sine', 0.15), 120); // G5
+export function playCorrect(force = false) {
+  playTone(523, 0.12, 'sine', 0.15, force); // C5
+  setTimeout(() => playTone(784, 0.2, 'sine', 0.15, force), 120); // G5
 }
 
 /** Incorrect answer — descending buzz */
-export function playIncorrect() {
-  playTone(300, 0.15, 'square', 0.06);
-  setTimeout(() => playTone(200, 0.25, 'square', 0.06), 150);
+export function playIncorrect(force = false) {
+  playTone(300, 0.15, 'square', 0.06, force);
+  setTimeout(() => playTone(200, 0.25, 'square', 0.06, force), 150);
 }
 
 /** Winner fanfare — triumphant ascending arpeggio */
-export function playFanfare() {
+export function playFanfare(force = false) {
   const notes = [523, 659, 784, 1047]; // C5, E5, G5, C6
   notes.forEach((freq, i) => {
-    setTimeout(() => playTone(freq, 0.3, 'sine', 0.15), i * 150);
+    setTimeout(() => playTone(freq, 0.3, 'sine', 0.15, force), i * 150);
   });
   // Add a shimmery noise burst at the end
-  setTimeout(() => playNoise(0.4, 0.05), notes.length * 150);
+  setTimeout(() => playNoise(0.4, 0.05, force), notes.length * 150);
 }
 
 /** Drumroll for dramatic reveals */
