@@ -1,53 +1,49 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { LiveTeam, TeamAnswer } from '@/types/live-game';
+import { TeamAnswer } from '@/types/live-game';
 import { Question } from '@/types/game';
 import { playCorrect, playIncorrect } from '@/lib/sounds';
-import { Check, X, Mic } from 'lucide-react';
+import { Mic, ChevronLeft, ChevronRight } from 'lucide-react';
+import { gameThemes, alpha } from '@/lib/game-themes';
 
-interface RoundRevealProps {
-  teams: LiveTeam[];
-  answers: TeamAnswer[];
+const theme = gameThemes.find((g) => g.id === 'qgame')!;
+
+export interface RoundQuestionData {
+  questionIndex: number;
   question: Question;
-  round: number;
-  totalRounds: number;
-  onContinue: () => void;
-  projectorMode?: boolean;
-  questionInRound?: number;
+  answers: TeamAnswer[];
 }
 
-// Canva canvas is 1920×1080 — convert px to vw/vh
-const vw = (px: number) => `${(px / 19.2).toFixed(3)}vw`;
-const vh = (px: number) => `${(px / 10.8).toFixed(3)}vh`;
-
-// Sugo Display grey gradient fill
-const sugoGradient: React.CSSProperties = {
-  background: 'linear-gradient(180deg, #e8e8e8 0%, #9a9a9a 60%, #6b6b6b 100%)',
-  WebkitBackgroundClip: 'text',
-  WebkitTextFillColor: 'transparent',
-  backgroundClip: 'text',
-};
+interface RoundRevealProps {
+  questions: RoundQuestionData[];
+  round: number;
+  onContinue: () => void;
+  continueLabel?: string;
+  projectorMode?: boolean;
+  viewIndex: number;
+  onSetViewIndex: (index: number) => void;
+}
 
 // ─── Animated Waveform ────────────────────────────────────────────────────────
-const AnimatedWaveform = () => {
-  const BAR_COUNT = 48;
+const AnimatedWaveform = ({ projectorMode }: { projectorMode?: boolean }) => {
+  const BAR_COUNT = 32;
   const baseHeights = useRef(
     Array.from({ length: BAR_COUNT }, () => 18 + Math.random() * 28)
   );
 
   return (
-    <div className="flex items-center justify-center gap-[5px] w-full max-w-[900px] h-full">
-      <div className="flex-shrink-0 w-[68px] h-[68px] bg-[#d9d9d9] rounded-full flex items-center justify-center mr-5 shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-        <Mic className="text-[#120524] w-[34px] h-[34px]" />
+    <div className={`flex items-center justify-center gap-[3px] w-full ${projectorMode ? 'max-w-xl h-24' : 'max-w-sm h-14'}`}>
+      <div
+        className="flex-shrink-0 rounded-full flex items-center justify-center mr-3"
+        style={{ width: projectorMode ? 44 : 32, height: projectorMode ? 44 : 32, background: alpha(theme.color1, 0.2), border: `1px solid ${alpha(theme.color1, 0.4)}` }}
+      >
+        <Mic style={{ color: theme.color1, width: projectorMode ? 22 : 16, height: projectorMode ? 22 : 16 }} />
       </div>
       {baseHeights.current.map((baseH, i) => (
         <motion.div
           key={i}
-          className="w-[5px] rounded-full"
-          style={{
-            background: 'linear-gradient(180deg, #d9d9d9 0%, #888 100%)',
-            boxShadow: '0 0 10px rgba(217,217,217,0.3)',
-          }}
+          className="w-[3px] rounded-full"
+          style={{ background: theme.color1 }}
           animate={{
             height: [`${baseH * 0.4}%`, `${baseH * 0.4 + Math.random() * 55}%`, `${baseH * 0.4}%`],
           }}
@@ -64,19 +60,25 @@ const AnimatedWaveform = () => {
 };
 
 export function RoundReveal({
-  answers,
-  question,
+  questions,
+  round,
   onContinue,
+  continueLabel = 'See Leaderboard',
   projectorMode,
-  questionInRound = 1,
+  viewIndex,
+  onSetViewIndex,
 }: RoundRevealProps) {
-  const soundPlayed = useRef(false);
+  const current = questions[viewIndex];
+  const isLastPage = viewIndex === questions.length - 1;
+  const soundPlayedForIndex = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  const { question, answers } = current;
+  const questionInRound = viewIndex + 1;
+
   const totalAnswers = answers.length;
   const correctCount = answers.filter(a => a.isCorrect).length;
-  const incorrectCount = totalAnswers - correctCount;
   const correctPercentage = totalAnswers > 0 ? Math.round((correctCount / totalAnswers) * 100) : 0;
 
   const displayMediaUrl = question.answerMediaUrl || question.mediaUrl;
@@ -84,11 +86,10 @@ export function RoundReveal({
   const isAudio = url.includes('.mp3') || url.includes('.wav') || url.includes('.m4a') || url.includes('.ogg');
   const isVideo = url.includes('.mp4') || url.includes('.webm') || url.includes('.mov');
   const isImage = !!displayMediaUrl && !isAudio && !isVideo;
-  const hasMedia = !!displayMediaUrl;
 
   useEffect(() => {
-    if (soundPlayed.current) return;
-    soundPlayed.current = true;
+    if (soundPlayedForIndex.current === viewIndex) return;
+    soundPlayedForIndex.current = viewIndex;
     const timer = setTimeout(() => {
       if (projectorMode) {
         if (correctCount > 0) playCorrect();
@@ -96,7 +97,7 @@ export function RoundReveal({
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [correctCount, projectorMode]);
+  }, [viewIndex, correctCount, projectorMode]);
 
   useEffect(() => {
     if (isAudio && audioRef.current) {
@@ -107,245 +108,126 @@ export function RoundReveal({
       videoRef.current.muted = !projectorMode;
       videoRef.current.play().catch(() => {});
     }
-  }, [isAudio, isVideo, projectorMode]);
+  }, [viewIndex, isAudio, isVideo, projectorMode]);
 
-  // Determine dynamic Y positions based on media presence
-  const yQuestionN = hasMedia && (isVideo || isImage) ? vh(50) : vh(144.5);
-  const yQuestionText = hasMedia && (isVideo || isImage) ? vh(100) : vh(207);
-  const yCorrectLabel = hasMedia && (isVideo || isImage) ? vh(810) : hasMedia && isAudio ? vh(500) : vh(409.2);
-  const yCorrectText = hasMedia && (isVideo || isImage) ? vh(810) : hasMedia && isAudio ? vh(560) : vh(469.8);
-  const yStatsRow = hasMedia && (isVideo || isImage) ? vh(930) : hasMedia && isAudio ? vh(700) : vh(736);
-  const yStatsPct = hasMedia && (isVideo || isImage) ? vh(1000) : hasMedia && isAudio ? vh(780) : vh(814.7);
+  if (!current) return null;
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.4 }}
-      // Full screen canvas, absolutely positioned to match Canva 1920×1080
-      className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none"
+      key={`reveal-${viewIndex}`}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className={`flex flex-col items-center gap-5 w-full mx-auto px-4 ${projectorMode ? 'max-w-3xl' : 'max-w-lg'}`}
     >
-
-      {/* ── "QUESTION N" label ── */}
-      {(projectorMode || !hasMedia || isAudio) && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="absolute w-full flex flex-col items-center"
-          style={{ top: yQuestionN }}
+      {/* Header */}
+      <div className="text-center">
+        <div
+          className={`inline-block font-bungee uppercase tracking-widest rounded-full mb-2 ${projectorMode ? 'text-sm px-6 py-2' : 'text-[11px] px-4 py-1.5'}`}
+          style={{ background: alpha(theme.color1, 0.15), border: `1px solid ${alpha(theme.color1, 0.35)}`, color: theme.color1 }}
         >
-          <span
-            className="font-bungee uppercase text-[#adbbff] leading-none tracking-wider"
-            style={{
-              fontSize: vw(24.3),
-              textShadow: '0 0 15px rgba(173,187,255,0.6)',
-            }}
-          >
-            Question {questionInRound}
-          </span>
-          <div
-            className="rounded-full bg-[#adbbff]/60 mt-[4px]"
-            style={{ width: vw(229.4), height: '3px' }}
-          />
-        </motion.div>
-      )}
+          Answer Reveal — Round {round}
+        </div>
+        <p className={`text-muted-foreground uppercase tracking-widest ${projectorMode ? 'text-base' : 'text-xs'}`}>
+          Question {questionInRound} of {questions.length}
+        </p>
+      </div>
 
-      {/* ── Question text ── */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.15 }}
-        className="absolute w-full flex justify-center"
-        style={{ top: yQuestionText }}
-      >
-        <h3
-          className="font-sugo uppercase tracking-[0.12em] leading-snug text-center"
-          style={{ fontSize: vw(26), maxWidth: vw(1585.7), ...sugoGradient }}
-        >
-          {question.text}
-        </h3>
-      </motion.div>
+      {/* Question text */}
+      <p className={`font-semibold text-center text-foreground ${projectorMode ? 'text-2xl max-w-2xl' : 'text-base max-w-md'}`}>
+        {question.text}
+      </p>
 
-      {/* ── AUDIO Media ── */}
+      {/* Media */}
       {isAudio && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="absolute w-full flex justify-center"
-          style={{ top: vh(280), height: vh(180) }}
-        >
-          <AnimatedWaveform />
+        <div className="w-full flex justify-center py-2">
+          <AnimatedWaveform projectorMode={projectorMode} />
           <audio ref={audioRef} src={displayMediaUrl} />
-        </motion.div>
+        </div>
       )}
 
-      {/* ── VIDEO/IMAGE Media ── */}
       {(isVideo || isImage) && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2 }}
-          className="absolute w-full flex justify-center"
-          style={{ top: vh(140) }}
+        <div
+          className="w-full rounded-xl overflow-hidden bg-black/40 border flex items-center justify-center p-2"
+          style={{ borderColor: alpha(theme.color1, 0.3), maxHeight: projectorMode ? 420 : 220 }}
         >
-          <div
-            className="rounded-lg overflow-hidden bg-black/40 border-[3px] border-[#adbbff]/30 shadow-[0_0_30px_rgba(173,187,255,0.15)] flex items-center justify-center p-2"
-            style={{ width: vw(1156.7), height: vh(652.4) }}
-          >
-            {isVideo ? (
-              <video
-                ref={videoRef}
-                src={displayMediaUrl}
-                className="w-full h-full object-contain rounded-md"
-                playsInline
-              />
-            ) : (
-              <img
-                src={displayMediaUrl}
-                alt="Answer Media"
-                className="w-full h-full object-contain rounded-md"
-              />
-            )}
-          </div>
-        </motion.div>
+          {isVideo ? (
+            <video ref={videoRef} src={displayMediaUrl} className="w-full h-full object-contain rounded-md" playsInline />
+          ) : (
+            <img src={displayMediaUrl} alt="Answer Media" className="w-full h-full object-contain rounded-md" />
+          )}
+        </div>
       )}
 
-      {/* ── "CORRECT ANSWER" label ── */}
-      {(!hasMedia || isAudio) && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          className="absolute w-full flex flex-col items-center"
-          style={{ top: yCorrectLabel }}
-        >
-          <span
-            className="font-bungee uppercase text-[#adbbff] leading-none tracking-wider"
-            style={{ fontSize: vw(24.3) }}
-          >
-            Correct Answer
-          </span>
-          <div
-            className="rounded-full bg-[#adbbff]/60 mt-[3px]"
-            style={{ width: vw(308.8), height: '3px' }}
-          />
-        </motion.div>
-      )}
-
-      {/* ── Answer text ── */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.35, type: 'spring', stiffness: 180 }}
-        className="absolute w-full flex justify-center"
-        style={{ top: yCorrectText }}
+      {/* Answer */}
+      <h2
+        className={`font-bungee uppercase text-center leading-tight ${projectorMode ? 'text-6xl' : 'text-3xl'}`}
+        style={{ color: theme.color1, textShadow: `0 0 30px ${alpha(theme.color1, 0.4)}` }}
       >
-        <h2
-          className="font-bungee uppercase text-[#adbbff] leading-tight text-center"
-          style={{
-            fontSize: hasMedia && (isVideo || isImage) ? vw(30) : vw(40.3),
-            maxWidth: vw(1585.7),
-            textShadow: '0 0 30px rgba(173,187,255,0.5), 0 0 60px rgba(173,187,255,0.2)',
-          }}
-        >
-          {question.answer}
-        </h2>
-      </motion.div>
+        {question.answer}
+      </h2>
 
-      {/* ── Stats row ── */}
-      {(projectorMode || !hasMedia || isAudio) && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45 }}
-          className="absolute flex items-center justify-center gap-[8vw] w-full"
-          style={{ top: yStatsRow }}
-        >
-          {/* Correct */}
-          <div className="flex items-center gap-[1.2vw]">
-            <div
-              className="rounded-full bg-[#22c55e] flex items-center justify-center flex-shrink-0 shadow-[0_0_18px_rgba(34,197,94,0.4)]"
-              style={{ width: vw(63.8), height: vw(63.8) }}
-            >
-              <Check
-                className="text-white stroke-[3.5]"
-                style={{ width: vw(32), height: vw(32) }}
-              />
-            </div>
-            <span
-              className="font-sugo uppercase tracking-widest text-[#d9d9d9] pt-1"
-              style={{ fontSize: vw(26) }}
-            >
-              {correctCount} Teams
-            </span>
-          </div>
-
-          {/* Incorrect */}
-          <div className="flex items-center gap-[1.2vw]">
-            <div
-              className="rounded-full bg-[#ef4444] flex items-center justify-center flex-shrink-0 shadow-[0_0_18px_rgba(239,68,68,0.4)]"
-              style={{ width: vw(63.8), height: vw(63.8) }}
-            >
-              <X
-                className="text-white stroke-[3.5]"
-                style={{ width: vw(32), height: vw(32) }}
-              />
-            </div>
-            <span
-              className="font-sugo uppercase tracking-widest text-[#d9d9d9] pt-1"
-              style={{ fontSize: vw(26) }}
-            >
-              {incorrectCount} Teams
-            </span>
-          </div>
-        </motion.div>
-      )}
-
-      {/* ── "X% OF TEAMS GOT THIS RIGHT" ── */}
-      {(projectorMode || !hasMedia || isAudio) && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.55 }}
-          className="absolute w-full flex justify-center"
-          style={{ top: yStatsPct }}
-        >
-          <span
-            className="font-bungee uppercase text-[#adbbff] tracking-wide"
-            style={{ fontSize: vw(23.2) }}
-          >
-            {correctPercentage}% of teams got this right
+      {/* Stats */}
+      <div className={`w-full space-y-2 ${projectorMode ? 'max-w-xl' : ''}`}>
+        <div className="flex items-center justify-between">
+          <span className={`font-bungee uppercase tracking-widest text-muted-foreground ${projectorMode ? 'text-sm' : 'text-[11px]'}`}>
+            Answered Correctly
           </span>
-        </motion.div>
-      )}
+          <span className={`font-bold text-success ${projectorMode ? 'text-lg' : 'text-sm'}`}>{correctPercentage}%</span>
+        </div>
+        <div className={`w-full rounded-full bg-secondary overflow-hidden ${projectorMode ? 'h-2.5' : 'h-1.5'}`}>
+          <div className="h-full rounded-full bg-success transition-all" style={{ width: `${correctPercentage}%` }} />
+        </div>
+        <p className={`text-muted-foreground text-center ${projectorMode ? 'text-sm' : 'text-xs'}`}>
+          {correctCount} of {totalAnswers} teams
+        </p>
+      </div>
 
-      {/* ── CONTINUE button ── */}
-      {/* W:177.7, H:36.8, X:871.2, Y:975.9 → centered (871.2 + 177.7/2 = 960 = center) */}
+      {/* Stepper + Continue */}
       {!projectorMode && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="absolute w-full flex justify-center pointer-events-auto"
-          style={{ bottom: vh(67.3) }}
-        >
-          <button
-            onClick={onContinue}
-            className="bg-[#adbbff] text-[#120524] font-bungee uppercase tracking-wide hover:brightness-110 active:scale-95 transition-all leading-none pb-[2px]"
-            style={{
-              width: vw(177.7),
-              height: vw(36.8),
-              fontSize: vw(23.2),
-              borderRadius: vw(6),
-              boxShadow: '0 0 20px rgba(173,187,255,0.2)',
-            }}
-          >
-            Continue
-          </button>
-        </motion.div>
+        <div className="w-full flex flex-col items-center gap-3">
+          {questions.length > 1 && (
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => onSetViewIndex(Math.max(0, viewIndex - 1))}
+                disabled={viewIndex === 0}
+                className="w-9 h-9 rounded-full border border-white/25 flex items-center justify-center disabled:opacity-30 transition-opacity"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="flex gap-2">
+                {questions.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => onSetViewIndex(i)}
+                    className="w-2 h-2 rounded-full transition-transform"
+                    style={{
+                      background: i === viewIndex ? theme.color1 : 'rgba(255,255,255,0.25)',
+                      transform: i === viewIndex ? 'scale(1.3)' : 'scale(1)',
+                    }}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={() => onSetViewIndex(Math.min(questions.length - 1, viewIndex + 1))}
+                disabled={isLastPage}
+                className="w-9 h-9 rounded-full border border-white/25 flex items-center justify-center disabled:opacity-30 transition-opacity"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {isLastPage && (
+            <button
+              onClick={onContinue}
+              className="font-bungee uppercase tracking-widest rounded-[10px] text-[14px] px-11 py-4"
+              style={{ background: 'transparent', border: `2px solid ${theme.color1}`, color: theme.color1, boxShadow: `0 0 20px ${alpha(theme.color1, 0.3)}` }}
+            >
+              {continueLabel} ▶
+            </button>
+          )}
+        </div>
       )}
     </motion.div>
   );

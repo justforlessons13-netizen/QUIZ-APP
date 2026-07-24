@@ -3,8 +3,6 @@ import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc } from 'fireba
 import { LiveGameState, LiveTeam, RoundState, HostGamePhase, TEAM_EMOJIS, createLiveGame } from '@/types/live-game';
 import { Question, checkAnswer, calculateScore } from '@/types/game';
 
-const LEADERBOARD_ROUNDS = [2, 4, 6];
-
 function advanceToNextQuestion(prev: LiveGameState): LiveGameState {
   const nextIndex = prev.currentQuestionIndex + 1;
   if (nextIndex >= prev.questions.length) return { ...prev, phase: 'finished' };
@@ -69,7 +67,13 @@ function getChanges(prev: LiveGameState, next: LiveGameState): Partial<LiveGameS
   return hasChange ? changes : null;
 }
 
-export function useLiveGame(sessionId: string, packId: string, packName: string, questions: Question[]) {
+export function useLiveGame(
+  sessionId: string,
+  packId: string,
+  packName: string,
+  questions: Question[],
+  lotteryAfterRound?: Record<number, boolean>
+) {
   const [game, setGame] = useState<LiveGameState>(() => createLiveGame(sessionId, packId, packName, questions));
   const [loading, setLoading] = useState(true);
 
@@ -305,6 +309,7 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
         currentQuestionIndex: firstIndexInRound,
         timerActive: false,
         rounds: updatedRounds,
+        roundStepIndex: 0,
       };
     });
   }, []);
@@ -344,10 +349,11 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
     });
   }, []);
 
-  const setAnswerCorrectness = useCallback((teamId: string, isCorrect: boolean) => {
+  const setAnswerCorrectness = useCallback((teamId: string, isCorrect: boolean, questionIndex?: number) => {
     setGame((prev) => {
+      const targetIndex = questionIndex ?? prev.currentQuestionIndex;
       const rounds = prev.rounds.map((r) => {
-        if (r.questionIndex !== prev.currentQuestionIndex) return r;
+        if (r.questionIndex !== targetIndex) return r;
         return {
           ...r,
           answers: r.answers.map((a) => (a.teamId === teamId ? { ...a, isCorrect } : a)),
@@ -357,50 +363,40 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
     });
   }, []);
 
-  const finalizeGrading = useCallback(() => {
+  // Commits scoring for every question in the current round at once (not per-question) so the
+  // Grading stepper can let the host revisit and edit any question in the round before finishing —
+  // points are only ever computed once, here, never incrementally per-question.
+  const finalizeRoundGrading = useCallback(() => {
     setGame((prev) => {
-      const roundIdx = prev.rounds.findIndex((r) => r.questionIndex === prev.currentQuestionIndex);
-      if (roundIdx === -1) return prev;
-
-      const roundState = prev.rounds[roundIdx];
       const currentQ = prev.questions[prev.currentQuestionIndex];
+      if (!currentQ) return prev;
 
-      const updatedAnswers = roundState.answers.map((a) => {
-        const points = a.hasCheated ? 0 : calculateScore(currentQ.round, !!a.isCorrect, a.isWagered);
-        return { ...a, pointsAwarded: points };
+      const newRounds = prev.rounds.map((r) => {
+        if (r.roundNumber !== currentQ.round) return r;
+        const q = prev.questions[r.questionIndex];
+        const updatedAnswers = r.answers.map((a) => {
+          const points = a.hasCheated ? 0 : calculateScore(q.round, !!a.isCorrect, a.isWagered);
+          return { ...a, pointsAwarded: points };
+        });
+        return { ...r, answers: updatedAnswers, isGraded: true };
       });
 
-      const updatedRoundState = { ...roundState, answers: updatedAnswers, isGraded: true };
-      const newRounds = [...prev.rounds];
-      newRounds[roundIdx] = updatedRoundState;
-
       const refinedTeams = prev.teams.map((t) => {
-        const ans = updatedAnswers.find((a) => a.teamId === t.id);
-        const pts = ans?.pointsAwarded ?? 0;
+        const roundQuestions = newRounds.filter((r) => r.roundNumber === currentQ.round);
+        const totalPts = roundQuestions.reduce((sum, r) => {
+          const ans = r.answers.find((a) => a.teamId === t.id);
+          return sum + (ans?.pointsAwarded ?? 0);
+        }, 0);
         const newRoundScores = [...t.roundScores];
         while (newRoundScores.length < currentQ.round) newRoundScores.push(0);
-        const currentRoundScore = newRoundScores[currentQ.round - 1] || 0;
-        newRoundScores[currentQ.round - 1] = currentRoundScore + pts;
+        newRoundScores[currentQ.round - 1] = totalPts;
 
         return {
           ...t,
-          score: t.score + pts,
+          score: t.score - (t.roundScores[currentQ.round - 1] || 0) + totalPts,
           roundScores: newRoundScores,
         };
       });
-
-      const nextIndex = prev.currentQuestionIndex + 1;
-      const nextQ = prev.questions[nextIndex];
-
-      if (nextQ && nextQ.round === currentQ.round) {
-        return {
-          ...prev,
-          rounds: newRounds,
-          teams: refinedTeams,
-          currentQuestionIndex: nextIndex,
-          phase: 'grading',
-        };
-      }
 
       const roundQuestionsIndices = prev.questions
         .map((q, i) => (q.round === currentQ.round ? i : -1))
@@ -413,35 +409,32 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
         teams: refinedTeams,
         phase: 'reveal',
         currentQuestionIndex: firstIndexInRound,
+        roundStepIndex: 0,
       };
     });
   }, []);
 
+  // Called once per round, from the last page of the Reveal stepper — Reveal no longer advances
+  // question-by-question (that's the local/synced roundStepIndex now), so this only ever needs to
+  // decide what comes after the whole round: final standings, a lottery draw, or the interim
+  // leaderboard. Every round gets one of the latter two — there's no "skip straight to next round"
+  // path anymore, matching the design's "leaderboard after every non-lottery round" intent.
   const advanceFromReveal = useCallback(() => {
     setGame((prev) => {
       const currentQ = prev.questions[prev.currentQuestionIndex];
-      const nextIndex = prev.currentQuestionIndex + 1;
-      const nextQ = prev.questions[nextIndex];
+      const hasMoreRounds = prev.questions.some((q) => q.round > currentQ.round);
 
-      if (nextQ && nextQ.round === currentQ.round) {
-        return {
-          ...prev,
-          currentQuestionIndex: nextIndex,
-          phase: 'reveal',
-        };
+      if (!hasMoreRounds) {
+        return { ...prev, phase: 'final-reveal', revealStep: 0 };
       }
 
-      if (LEADERBOARD_ROUNDS.includes(currentQ.round)) {
-        if (currentQ.round === 6 || !nextQ) {
-          return { ...prev, phase: 'final-reveal', revealStep: 0 };
-        }
-        if (currentQ.round === 2 || currentQ.round === 4) {
-          return { ...prev, phase: 'lottery' };
-        }
-        return { ...prev, phase: 'leaderboard' };
+      if (lotteryAfterRound?.[currentQ.round]) {
+        // Always start a lottery round from a clean slate — a leftover pool/history from an
+        // earlier round in the same game must never carry over into this one.
+        return { ...prev, phase: 'lottery', lotteryState: undefined };
       }
 
-      return advanceToNextQuestion(prev);
+      return { ...prev, phase: 'leaderboard' };
     });
   }, []);
 
@@ -487,9 +480,17 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
 
   const advanceFromLeaderboard = useCallback(() => {
     setGame((prev) => {
-      const nextIndex = prev.currentQuestionIndex + 1;
-      if (nextIndex >= prev.questions.length) return { ...prev, phase: 'finished' };
-      return advanceToNextQuestion(prev);
+      // currentQuestionIndex is pinned at the round's FIRST question throughout reveal/leaderboard
+      // (see finalizeRoundGrading) — realign to the round's LAST question before delegating to
+      // advanceToNextQuestion, whose +1 math expects the last-played question index.
+      const currentQ = prev.questions[prev.currentQuestionIndex];
+      const roundIndices = prev.questions
+        .map((q, i) => (q.round === currentQ.round ? i : -1))
+        .filter((i) => i !== -1);
+      const lastIndexInRound = roundIndices[roundIndices.length - 1];
+
+      if (lastIndexInRound + 1 >= prev.questions.length) return { ...prev, phase: 'finished' };
+      return advanceToNextQuestion({ ...prev, currentQuestionIndex: lastIndexInRound });
     });
   }, []);
 
@@ -514,6 +515,8 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
           max,
           remainingPool,
           currentDrawnNumber: null,
+          history: [],
+          confettiPlays: 0,
         },
       };
     });
@@ -534,9 +537,25 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
           ...prev.lotteryState,
           remainingPool: pool,
           currentDrawnNumber: drawnNumber,
+          history: [...prev.lotteryState.history, drawnNumber],
+          confettiPlays: prev.lotteryState.confettiPlays + 1,
         },
       };
     });
+  }, []);
+
+  const replayLotteryConfetti = useCallback(() => {
+    setGame((prev) => {
+      if (!prev.lotteryState) return prev;
+      return {
+        ...prev,
+        lotteryState: { ...prev.lotteryState, confettiPlays: prev.lotteryState.confettiPlays + 1 },
+      };
+    });
+  }, []);
+
+  const replayWinnerConfetti = useCallback(() => {
+    setGame((prev) => ({ ...prev, winnerConfettiPlays: (prev.winnerConfettiPlays ?? 0) + 1 }));
   }, []);
 
   const updateRevealStep = useCallback((step: number) => {
@@ -545,6 +564,10 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
 
   const updateRuleIndex = useCallback((index: number) => {
     setGame((prev) => ({ ...prev, currentRuleIndex: index }));
+  }, []);
+
+  const updateRoundStepIndex = useCallback((index: number) => {
+    setGame((prev) => ({ ...prev, roundStepIndex: index }));
   }, []);
 
   return {
@@ -563,15 +586,18 @@ export function useLiveGame(sessionId: string, packId: string, packName: string,
     updateTeamAnswer,
     autoGrade,
     setAnswerCorrectness,
-    finalizeGrading,
+    finalizeRoundGrading,
     advanceFromReveal,
     adjustTeamScore,
     advanceFromLeaderboard,
     advanceFromLottery,
     initializeLottery,
     drawLotteryNumber,
+    replayLotteryConfetti,
+    replayWinnerConfetti,
     resetGame,
     updateRevealStep,
     updateRuleIndex,
+    updateRoundStepIndex,
   };
 }

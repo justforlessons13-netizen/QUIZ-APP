@@ -1,6 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Play } from 'lucide-react';
+import { gameThemes, alpha } from '@/lib/game-themes';
+
+const theme = gameThemes.find((g) => g.id === 'qgame')!;
 
 export const GAME_RULES = [
   { emoji: '🤫', title: 'SILENCE IS GOLDEN', description: 'Do not shout the correct answer!' },
@@ -23,9 +26,9 @@ const scopedCSS = `
 .gr-arrow {
   width: 48px; height: 48px; min-width: 48px;
   border-radius: 50%;
-  border: 1px solid rgba(173,187,255,0.15);
-  background: rgba(173,187,255,0.12);
-  color: #adbbff;
+  border: 1px solid ${alpha(theme.color1, 0.3)};
+  background: ${alpha(theme.color1, 0.15)};
+  color: ${theme.color1};
   font-size: 20px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; padding: 0;
@@ -33,7 +36,7 @@ const scopedCSS = `
   transition: background 0.2s, transform 0.2s, opacity 0.2s;
 }
 .gr-arrow:not(:disabled):hover {
-  background: rgba(173,187,255,0.25);
+  background: ${alpha(theme.color1, 0.25)};
   transform: scale(1.1);
 }
 .gr-arrow:disabled {
@@ -50,7 +53,7 @@ const scopedCSS = `
 .gr-dot:hover { transform: scale(1.3); }
 .gr-card-inner {
   background: #13131f;
-  border: 1px solid rgba(173,187,255,0.15);
+  border: 1px solid ${alpha(theme.color1, 0.25)};
   border-radius: 16px;
   padding: 40px 32px;
   position: relative;
@@ -123,8 +126,8 @@ export function GameRulesDisplay({ projectorMode, onContinue, currentRuleIndex =
       {/* ── Title ── */}
       <div className="text-center mb-8">
         <h1
-          className="text-4xl md:text-5xl font-bungee text-white tracking-wide"
-          style={{ textShadow: '0 0 30px rgba(255,255,255,0.6), 0 0 60px rgba(173,187,255,0.3)' }}
+          className="text-4xl md:text-5xl font-bungee text-white tracking-wide uppercase"
+          style={{ textShadow: `0 0 30px ${alpha(theme.color1, 0.6)}` }}
         >
           Game Rules
         </h1>
@@ -160,7 +163,7 @@ export function GameRulesDisplay({ projectorMode, onContinue, currentRuleIndex =
                   {/* Top accent line */}
                   <div style={{
                     position: 'absolute', top: 0, left: 0, right: 0, height: 3,
-                    background: 'linear-gradient(90deg, transparent, #adbbff, transparent)',
+                    background: `linear-gradient(90deg, transparent, ${theme.color1}, transparent)`,
                     opacity: 0.5,
                   }} />
 
@@ -177,7 +180,7 @@ export function GameRulesDisplay({ projectorMode, onContinue, currentRuleIndex =
                     {/* Icon */}
                     <div style={{
                       fontSize: 48, lineHeight: 1,
-                      filter: 'drop-shadow(0 0 12px rgba(173,187,255,0.4))',
+                      filter: `drop-shadow(0 0 12px ${alpha(theme.color1, 0.4)})`,
                     }}>
                       {rule.emoji}
                     </div>
@@ -214,9 +217,9 @@ export function GameRulesDisplay({ projectorMode, onContinue, currentRuleIndex =
               onClick={() => goTo(idx)}
               aria-label={`Go to rule ${idx + 1}`}
               style={{
-                background: isActive ? '#adbbff' : isVisited ? '#8a8aa3' : 'rgba(173,187,255,0.15)',
+                background: isActive ? theme.color1 : isVisited ? '#8a8aa3' : alpha(theme.color1, 0.15),
                 transform: isActive ? 'scale(1.2)' : 'scale(1)',
-                boxShadow: isActive ? '0 0 10px rgba(173,187,255,0.35)' : 'none',
+                boxShadow: isActive ? `0 0 10px ${alpha(theme.color1, 0.35)}` : 'none',
               }}
             />
           );
@@ -239,10 +242,10 @@ export function GameRulesDisplay({ projectorMode, onContinue, currentRuleIndex =
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               onClick={onContinue}
-              className="flex items-center gap-2 px-6 py-2 rounded-xl bg-transparent border-2 border-primary text-primary font-bungee text-[15px] uppercase tracking-widest animate-borderPulse"
-              style={{ marginTop: 20, boxShadow: '0 0 20px rgba(0,255,255,0.2)' }}
+              className="flex items-center gap-2 px-6 py-2 rounded-xl bg-transparent border-2 font-bungee text-[15px] uppercase tracking-widest animate-borderPulse"
+              style={{ marginTop: 20, borderColor: theme.color1, color: theme.color1, boxShadow: `0 0 20px ${alpha(theme.color1, 0.2)}` }}
             >
-              <Play className="w-4 h-4 fill-primary" /> Let's Go!
+              <Play className="w-4 h-4 fill-current" /> Let's Go!
             </motion.button>
           )}
         </AnimatePresence>
@@ -258,7 +261,8 @@ export function GameRulesDisplay({ projectorMode, onContinue, currentRuleIndex =
                   key={`l-${i}`}
                   animate={{ opacity: [0.3, 1, 0.3] }}
                   transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
-                  className="w-1.5 h-1.5 rounded-full bg-primary/80"
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ background: alpha(theme.color1, 0.8) }}
                 />
               ))}
             </div>
@@ -271,7 +275,8 @@ export function GameRulesDisplay({ projectorMode, onContinue, currentRuleIndex =
                   key={`r-${i}`}
                   animate={{ opacity: [0.3, 1, 0.3] }}
                   transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
-                  className="w-1.5 h-1.5 rounded-full bg-primary/80"
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ background: alpha(theme.color1, 0.8) }}
                 />
               ))}
             </div>

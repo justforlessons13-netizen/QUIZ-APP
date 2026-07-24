@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, RotateCcw, Home, MonitorUp, Smartphone, Trophy } from 'lucide-react';
+import { ArrowLeft, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLiveGame } from '@/hooks/useLiveGame';
 import { QuestionPack } from '@/types/host';
@@ -10,7 +10,6 @@ import { HostGrading } from '@/components/host-game/HostGrading';
 import { RoundReveal } from '@/components/host-game/RoundReveal';
 import { LiveLeaderboard } from '@/components/host-game/LiveLeaderboard';
 import { LotteryRandomizer } from '@/components/host-game/LotteryRandomizer';
-import { FinalStandingsDisplay } from '@/components/host-game/FinalStandingsDisplay';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { getFirestore, setDoc, doc, getDoc } from 'firebase/firestore';
 import { GameRulesDisplay } from '@/components/host-game/GameRulesDisplay';
@@ -20,6 +19,9 @@ import { GameAudioController } from '@/components/layout/GameAudioController';
 import { RemoteControlModal } from '@/components/host-game/RemoteControlModal';
 import { HostLeaderboardModal } from '@/components/host-game/HostLeaderboardModal';
 import { unlockWebAudio } from '@/lib/sounds';
+import { gameThemes, alpha } from '@/lib/game-themes';
+
+const theme = gameThemes.find((g) => g.id === 'qgame')!;
 
 function LiveGameController({
   pack,
@@ -105,7 +107,7 @@ function LiveGameController({
     updateTeamAnswer,
     autoGrade,
     setAnswerCorrectness,
-    finalizeGrading,
+    finalizeRoundGrading,
     advanceToRoundRules,
     startRound,
     advanceFromReveal,
@@ -113,15 +115,19 @@ function LiveGameController({
     advanceFromLottery,
     initializeLottery,
     drawLotteryNumber,
+    replayLotteryConfetti,
+    replayWinnerConfetti,
     resetGame,
     updateRevealStep,
     updateRuleIndex,
+    updateRoundStepIndex,
     adjustTeamScore,
   } = useLiveGame(
     sessionId,
     pack.id,
     pack.name,
-    pack.questions
+    pack.questions,
+    pack.lotteryAfterRound
   );
 
   const gameCode = game.gameCode;
@@ -170,11 +176,37 @@ function LiveGameController({
     : 1;
   const totalQuestionsInRound = questionsInCurrentRound.length;
 
+  // Full round's question+answer data, for the Grading/Reveal steppers — every question in the
+  // round already has a RoundState entry by the time grading/reveal starts (see finishQuestion).
+  const roundQuestionData = pack.questions
+    .map((q, questionIndex) => ({ q, questionIndex }))
+    .filter(({ q }) => q.round === game.currentRound)
+    .map(({ q, questionIndex }) => ({
+      questionIndex,
+      question: q,
+      answers: game.rounds.find(r => r.questionIndex === questionIndex)?.answers ?? [],
+    }));
+
+  const answeredCount = currentRoundState?.answers.filter(a => a.answer.trim().length > 0).length ?? 0;
+  const teamsTotal = game.teams.length;
+
   const currentMediaUrl = currentQuestion?.mediaUrl?.toLowerCase() || '';
   const questionHasSound = currentMediaUrl.includes('.mp3') ||
     currentMediaUrl.includes('.wav') ||
     currentMediaUrl.includes('.mp4') ||
     currentMediaUrl.includes('.webm');
+
+  const totalRounds = Math.max(...pack.questions.map(q => q.round), 1);
+
+  // Mirrors advanceFromReveal's own branching (useLiveGame.ts) purely for the Reveal
+  // screen's continue-button label — kept in sync manually since the destination phase
+  // isn't computed until the button is actually clicked.
+  const hasMoreRoundsAfterCurrent = pack.questions.some(q => q.round > game.currentRound);
+  const revealContinueLabel = !hasMoreRoundsAfterCurrent
+    ? 'See Final Standings'
+    : pack.lotteryAfterRound?.[game.currentRound]
+      ? 'See Lottery Draw'
+      : 'See Leaderboard';
 
   return (
     <div className="min-h-screen relative flex flex-col overflow-hidden">
@@ -189,28 +221,33 @@ function LiveGameController({
         hideControls={projectorMode}
       />
 
-      {/* FIXED HEADER: Now matches your Canva mockups perfectly */}
-      {!projectorMode && game.phase !== 'question' && (
-        <header className="relative z-20 flex justify-between items-center w-full p-6 text-[#adbbff] font-bungee text-sm md:text-base tracking-wider transition-all">
-          <button
-            onClick={() => navigate('/host')}
-            className="flex items-center gap-3 hover:text-white transition-colors uppercase"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            Home
-          </button>
+      {/* LOBBY NAV — only the team-setup phase gets a top nav; every other in-game
+          screen (rules, question, grading, reveal, lottery, leaderboard...) relies solely
+          on the bottom-left icon row for navigation, matching the source design. */}
+      {!projectorMode && game.phase === 'team-setup' && (
+        <header className="relative z-20 flex justify-between items-center w-full px-6 md:px-12 py-6 transition-all">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/host')}
+              title="Back"
+              className="w-[34px] h-[34px] rounded-full border flex items-center justify-center flex-shrink-0 transition-colors hover:bg-white/10"
+              style={{ borderColor: alpha(theme.color1, 0.35), color: theme.color1 }}
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <span className="font-bungee text-base tracking-wide" style={{ color: theme.color1 }}>
+              PLAYHUB
+            </span>
+          </div>
 
-          <div className="opacity-80 text-center flex-1 hidden sm:block uppercase tracking-widest">
+          <div className="text-xs uppercase tracking-widest text-white/60">
             {pack.name}
           </div>
 
-          <button
-            onClick={toggleProjectorMode}
-            className="flex items-center gap-3 hover:text-white transition-colors uppercase"
-          >
-            <i className="ti ti-arrows-maximize text-[20px]" />
-            Projector
-          </button>
+          <div className="flex items-center gap-1.5 bg-[#ff5050]/15 border border-[#ff5050]/20 rounded-full px-2.5 py-1.5 text-[10px] text-[#ff7070] font-bold tracking-[1.5px] uppercase">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#ff4444] animate-blinkSlow shadow-[0_0_8px_#ff4444]" />
+            LIVE
+          </div>
         </header>
       )}
 
@@ -268,6 +305,8 @@ function LiveGameController({
               onStart={startGame}
               gameCode={gameCode}
               projectorMode={projectorMode}
+              sessionId={sessionId}
+              packId={pack.id}
             />
           )}
 
@@ -285,6 +324,7 @@ function LiveGameController({
             <RoundRulesDisplay
               key={`round-rules-${game.currentRound}`}
               round={game.currentRound}
+              totalRounds={totalRounds}
               roundName={pack.roundNames?.[game.currentRound]}
               rules={pack.roundRules?.[game.currentRound]}
               projectorMode={projectorMode}
@@ -297,7 +337,7 @@ function LiveGameController({
               key={`question-${game.currentQuestionIndex}`}
               question={currentQuestion}
               round={game.currentRound}
-              totalRounds={6}
+              totalRounds={totalRounds}
               questionInRound={questionNumberInRound}
               totalInRound={totalQuestionsInRound}
               timeLeft={game.timeLeft}
@@ -307,10 +347,8 @@ function LiveGameController({
               projectorMode={projectorMode}
               timerActive={game.timerActive}
               packName={pack.name}
-              sessionId={sessionId}
-              gameCode={gameCode}
-              game={game}
-              onAdjustScore={adjustTeamScore}
+              answeredCount={answeredCount}
+              teamsTotal={teamsTotal}
             />
           )}
 
@@ -330,37 +368,32 @@ function LiveGameController({
                   Host is grading...
                 </h2>
 
-                {/* Sugo Font with perfectly mapped gradient text */}
                 <p className="font-sugo text-[20px] md:text-[26px] uppercase tracking-widest bg-gradient-to-r from-[#d9d9d9] via-[#b4b9d6] to-[#737373] bg-clip-text text-transparent">
                   Check your device when grading completes.
                 </p>
               </motion.div>
             ) : (
               <HostGrading
-                key={`grading-${game.currentQuestionIndex}`}
+                key={`grading-${game.currentRound}`}
                 teams={game.teams}
-                answers={currentRoundState.answers}
-                question={currentQuestion}
+                questions={roundQuestionData}
                 round={game.currentRound}
-                questionInRound={questionNumberInRound}
-                totalInRound={totalQuestionsInRound}
                 onSetCorrectness={setAnswerCorrectness}
-                onFinalize={finalizeGrading}
+                onFinishRound={finalizeRoundGrading}
               />
             )
           )}
 
-          {game.phase === 'reveal' && currentQuestion && currentRoundState && (
+          {game.phase === 'reveal' && roundQuestionData.length > 0 && (
             <RoundReveal
-              key={`reveal-${game.currentQuestionIndex}`}
-              teams={game.teams}
-              answers={currentRoundState.answers}
-              question={currentQuestion}
+              key={`reveal-${game.currentRound}`}
+              questions={roundQuestionData}
               round={game.currentRound}
-              totalRounds={6}
               onContinue={advanceFromReveal}
+              continueLabel={revealContinueLabel}
               projectorMode={projectorMode}
-              questionInRound={questionNumberInRound}
+              viewIndex={game.roundStepIndex ?? 0}
+              onSetViewIndex={updateRoundStepIndex}
             />
           )}
 
@@ -372,6 +405,7 @@ function LiveGameController({
               onInitialize={initializeLottery}
               onDraw={drawLotteryNumber}
               onContinue={advanceFromLottery}
+              onReplayConfetti={replayLotteryConfetti}
             />
           )}
 
@@ -392,19 +426,12 @@ function LiveGameController({
               teams={game.teams}
               isFinal={true}
               currentRound={game.currentRound}
-              onContinue={() => setPhase('final-standings')}
+              onContinue={() => setPhase('finished')}
               projectorMode={projectorMode}
               revealStep={game.revealStep || 0}
               onSetRevealStep={updateRevealStep}
-            />
-          )}
-
-          {game.phase === 'final-standings' && (
-            <FinalStandingsDisplay
-              key="final-standings"
-              teams={game.teams}
-              projectorMode={projectorMode}
-              onFinish={() => setPhase('finished')}
+              winnerConfettiPlays={game.winnerConfettiPlays}
+              onReplayWinnerConfetti={replayWinnerConfetti}
             />
           )}
 
@@ -434,35 +461,35 @@ function LiveGameController({
 
       {/* ── GLOBAL HOST BOTTOM ACTIONS ── */}
       {!projectorMode && (
-        <div className="fixed bottom-[44px] left-[55px] z-[60] flex items-center pointer-events-none">
-          <div className="flex items-center gap-0 pointer-events-auto">
+        <div className="fixed bottom-[24px] left-[24px] z-[60] flex items-center gap-2.5 pointer-events-none">
+          <div className="flex items-center gap-2.5 pointer-events-auto">
             <button
               onClick={() => setPhase('team-setup')}
-              className="hover:scale-110 active:scale-95 transition-all opacity-60 hover:opacity-100"
+              className="w-10 h-10 rounded-[11px] bg-white/[0.07] border border-white/[0.12] flex items-center justify-center hover:scale-110 hover:bg-white/[0.12] active:scale-95 transition-all"
               title="Home (Lobby)"
             >
-              <img src="/home.svg" alt="Home" className="h-[20px] w-auto pointer-events-none" />
+              <img src="/home.svg" alt="Home" className="h-[18px] w-auto pointer-events-none" />
             </button>
             <button
               onClick={openProjectorWindow}
-              className="hover:scale-110 active:scale-95 transition-all opacity-60 hover:opacity-100"
-              title="Projector Mode"
+              className="w-10 h-10 rounded-[11px] bg-white/[0.07] border border-white/[0.12] flex items-center justify-center hover:scale-110 hover:bg-white/[0.12] active:scale-95 transition-all"
+              title="Open Projector Window"
             >
-              <img src="/project.svg" alt="Projector Mode" className="h-[20px] w-auto pointer-events-none" />
+              <img src="/project.svg" alt="Projector" className="h-[18px] w-auto pointer-events-none" />
             </button>
             <button
               onClick={() => setShowRemote(true)}
-              className="hover:scale-110 active:scale-95 transition-all opacity-60 hover:opacity-100"
+              className="w-10 h-10 rounded-[11px] bg-white/[0.07] border border-white/[0.12] flex items-center justify-center hover:scale-110 hover:bg-white/[0.12] active:scale-95 transition-all"
               title="Remote Control"
             >
-              <img src="/remote.svg" alt="Remote" className="h-[20px] w-auto pointer-events-none" />
+              <img src="/remote.svg" alt="Remote" className="h-[18px] w-auto pointer-events-none" />
             </button>
             <button
               onClick={() => setShowLeaderboard(true)}
-              className="hover:scale-110 active:scale-95 transition-all opacity-60 hover:opacity-100"
-              title="Leaderboard"
+              className="w-10 h-10 rounded-[11px] bg-white/[0.07] border border-white/[0.12] flex items-center justify-center hover:scale-110 hover:bg-white/[0.12] active:scale-95 transition-all"
+              title="Edit Scores"
             >
-              <img src="/leaderboard.svg" alt="Leaderboard" className="h-[20px] w-auto pointer-events-none" />
+              <img src="/leaderboard.svg" alt="Edit Scores" className="h-[18px] w-auto pointer-events-none" />
             </button>
           </div>
         </div>
@@ -481,6 +508,7 @@ function LiveGameController({
         onOpenChange={setShowLeaderboard}
         teams={game.teams}
         currentRound={game.currentRound}
+        totalRounds={totalRounds}
         onAdjustScore={adjustTeamScore}
       />
 
@@ -531,7 +559,7 @@ export default function HostGame() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
-          <p className="text-xl text-muted-foreground font-sugo tracking-wider">Pack not found</p>
+          <p className="text-xl text-muted-foreground tracking-wider">Pack not found</p>
           <Button onClick={() => navigate('/host')} className="bg-[#adbbff] text-[#120524] font-bungee">Back to Dashboard</Button>
         </div>
       </div>

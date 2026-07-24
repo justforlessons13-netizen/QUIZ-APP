@@ -3,12 +3,14 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getFirestore, doc, getDoc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { ArrowLeft, LogIn, LogOut } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { PlayerGame } from '@/components/game/PlayerGame';
 import { TEAM_EMOJIS, LiveGameState } from '@/types/live-game';
 import { Emoji3D } from '@/components/ui/Emoji3D';
 import { DynamicBackground } from '@/components/layout/DynamicBackground';
+import { gameThemes, alpha } from '@/lib/game-themes';
+
+const theme = gameThemes.find((g) => g.id === 'qgame')!;
 
 // ─── localStorage key ─────────────────────────────────────────────────────────
 const STORAGE_KEY = 'qgame-player-session';
@@ -240,125 +242,147 @@ export default function JoinGame() {
 
   // ── Join flow ──
   return (
-    <div className="min-h-screen relative flex flex-col text-foreground">
-      <DynamicBackground phase="team-setup" />
-      <header className="flex items-center p-4 relative z-10">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-white hover:bg-white/10">
-          <ArrowLeft className="w-4 h-4 mr-1" /> Home
-        </Button>
-      </header>
+    <div className="min-h-screen flex flex-col" style={{ background: 'oklch(96% 0.012 195)' }}>
+      <nav className="flex items-center gap-4 px-6 sm:px-12 py-5">
+        <button
+          onClick={() => navigate('/')}
+          title="Back"
+          className="w-[34px] h-[34px] rounded-full border flex items-center justify-center flex-shrink-0 transition-colors hover:bg-black/5"
+          style={{ borderColor: 'oklch(30% 0.06 195 / .25)', color: 'oklch(30% 0.06 195)' }}
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <span className="font-bungee text-base tracking-wide" style={{ color: theme.color1 }}>
+          PLAYHUB
+        </span>
+      </nav>
 
-      <main className="flex-1 flex items-start mt-4 md:items-center md:mt-0 justify-center p-2 relative z-10">
+      <main className="flex-1 flex items-start mt-4 md:items-center md:mt-0 justify-center p-2 pb-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-center gap-4 w-full max-w-[480px] mx-auto"
+          className="flex flex-col items-center gap-5 w-full max-w-[420px] mx-auto"
         >
           <div className="text-center">
-            <h1 className="text-4xl font-bungee text-primary drop-shadow-[0_0_15px_rgba(0,255,255,0.5)]">Join Game</h1>
-            <p className="text-sm text-muted-foreground mt-2">
-              {found ? "Choose your team and avatar" : "Enter the game code shown on the host's screen"}
+            <h1
+              className="font-bungee uppercase text-[30px] mb-2"
+              style={{ color: 'oklch(28% 0.06 195)' }}
+            >
+              Join the game
+            </h1>
+            <p className="text-[13.5px]" style={{ color: 'oklch(50% 0.02 195)' }}>
+              {found ? 'Choose your team and avatar' : "Enter the code shown on the host's screen"}
             </p>
           </div>
 
           {!found ? (
-            <>
-              <div className="flex gap-4 justify-center w-full">
-                {[0, 1, 2, 3].map((index) => (
-                  <input
-                    key={index}
-                    ref={(el) => (inputRefs.current[index] = el)}
-                    type="text"
-                    value={code[index] || ''}
-                    onChange={(e) => {
-                      const val = e.target.value.toUpperCase();
-                      // Handle paste
-                      if (val.length > 1) {
-                        const pasted = val.replace(/[^A-Z0-9]/g, '').slice(0, 4);
-                        if (pasted) {
-                          setCode(pasted);
-                          if (pasted.length === 4) {
-                            handleLookup(pasted);
-                          } else {
-                            inputRefs.current[pasted.length]?.focus();
-                          }
-                        }
-                        return;
-                      }
-                      const newArr = [0, 1, 2, 3].map(idx => code[idx] || '');
-                      newArr[index] = val;
-                      const newCode = newArr.join('');
-                      setCode(newCode);
-                      if (val && index < 3) {
-                        inputRefs.current[index + 1]?.focus();
-                      }
-                      if (newCode.length === 4 && val) {
-                        handleLookup(newCode);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Backspace') {
-                        if (!code[index] && index > 0) {
-                          inputRefs.current[index - 1]?.focus();
-                        }
-                      } else if (e.key === 'Enter') {
-                        if (code.length >= 4) {
-                          handleLookup();
+            <div className="flex gap-3 justify-center w-full">
+              {[0, 1, 2, 3].map((index) => (
+                <input
+                  key={index}
+                  ref={(el) => (inputRefs.current[index] = el)}
+                  type="text"
+                  value={code[index] || ''}
+                  onChange={(e) => {
+                    const val = e.target.value.toUpperCase();
+                    // Handle paste
+                    if (val.length > 1) {
+                      const pasted = val.replace(/[^A-Z0-9]/g, '').slice(0, 4);
+                      if (pasted) {
+                        setCode(pasted);
+                        if (pasted.length === 4) {
+                          handleLookup(pasted);
+                        } else {
+                          inputRefs.current[pasted.length]?.focus();
                         }
                       }
-                    }}
-                    maxLength={4} // Allow paste to bring in more, but manually slice it
-                    className="w-16 h-20 bg-card border-2 border-primary rounded-xl text-primary text-center text-4xl font-bungee shadow-[0_0_15px_rgba(0,255,255,0.2)] focus:shadow-[0_0_20px_rgba(0,255,255,0.5)] focus:outline-none transition-all uppercase"
-                    autoFocus={index === 0}
-                  />
-                ))}
-              </div>
-            </>
+                      return;
+                    }
+                    const newArr = [0, 1, 2, 3].map(idx => code[idx] || '');
+                    newArr[index] = val;
+                    const newCode = newArr.join('');
+                    setCode(newCode);
+                    if (val && index < 3) {
+                      inputRefs.current[index + 1]?.focus();
+                    }
+                    if (newCode.length === 4 && val) {
+                      handleLookup(newCode);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Backspace') {
+                      if (!code[index] && index > 0) {
+                        inputRefs.current[index - 1]?.focus();
+                      }
+                    } else if (e.key === 'Enter') {
+                      if (code.length >= 4) {
+                        handleLookup();
+                      }
+                    }
+                  }}
+                  maxLength={4} // Allow paste to bring in more, but manually slice it
+                  className="text-center font-bungee focus:outline-none transition-all uppercase rounded-lg"
+                  style={{
+                    width: 64,
+                    height: 78,
+                    fontSize: 30,
+                    color: theme.color3,
+                    background: '#fff',
+                    border: `1.5px solid ${theme.color1}`,
+                  }}
+                  autoFocus={index === 0}
+                />
+              ))}
+            </div>
           ) : (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className="w-full space-y-4"
             >
-              <div className="p-4 rounded-xl bg-black/60 border border-success/50 shadow-[0_0_15px_rgba(0,255,0,0.15)] flex flex-col items-center justify-center text-center">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-                  <span className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Game found</span>
+              <div
+                className="p-4 rounded-xl flex flex-col items-center justify-center gap-1 text-center"
+                style={{ background: alpha(theme.color1, 0.1), border: `1px solid ${alpha(theme.color1, 0.33)}` }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="w-[7px] h-[7px] rounded-full" style={{ background: 'oklch(55% 0.14 150)' }} />
+                  <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'oklch(45% 0.02 195)' }}>
+                    Game found
+                  </span>
                 </div>
-                <p className="text-2xl font-bungee text-primary">{found.packName}</p>
+                <p className="font-bungee text-[19px] uppercase" style={{ color: 'oklch(28% 0.06 195)' }}>{found.packName}</p>
               </div>
 
-              <div className="space-y-2">
-                <p className="text-xs text-primary text-center font-bungee uppercase tracking-widest">Choose your avatar</p>
-                <div className="grid grid-cols-6 gap-2 w-full max-w-[460px] mx-auto">
-                  {TEAM_EMOJIS.map((emoji, idx) => {
+              <div className="space-y-2.5">
+                <p
+                  className="text-[11.5px] font-bold text-center uppercase tracking-widest"
+                  style={{ color: 'oklch(45% 0.02 195)' }}
+                >
+                  Choose your avatar
+                </p>
+                <div className="grid grid-cols-6 gap-2 w-full">
+                  {TEAM_EMOJIS.map((emoji) => {
                     const isTaken = takenEmojis.includes(emoji);
+                    const isSelected = selectedEmoji === emoji;
                     return (
-                      <motion.button
+                      <button
                         key={emoji}
-                        initial={{ y: 0 }}
-                        animate={isTaken ? {} : { y: [0, -5, 0] }}
-                        transition={{
-                          duration: 2,
-                          repeat: Infinity,
-                          ease: "easeInOut",
-                          delay: idx * 0.1,
-                        }}
                         onClick={() => !isTaken && setSelectedEmoji(emoji)}
                         disabled={isTaken}
-                        className={`aspect-square rounded-xl flex items-center justify-center transition-all ${
-                          isTaken 
-                            ? 'bg-card/20 border border-border/10 opacity-30 cursor-not-allowed grayscale' 
-                            : selectedEmoji === emoji
-                              ? 'bg-card border-2 border-primary scale-110 animate-borderPulse'
-                              : 'bg-card border border-border hover:border-primary/40 hover:bg-card/80'
-                          }`}
-                        title={isTaken ? "Already taken" : undefined}
+                        title={isTaken ? 'Already taken' : undefined}
+                        className="aspect-square rounded-[10px] flex items-center justify-center transition-all"
+                        style={{
+                          background: isSelected ? alpha(theme.color1, 0.15) : '#fff',
+                          border: `1.5px solid ${isSelected ? theme.color1 : 'oklch(88% 0.015 195)'}`,
+                          opacity: isTaken ? 0.3 : 1,
+                          cursor: isTaken ? 'not-allowed' : 'pointer',
+                          filter: isTaken ? 'grayscale(1)' : 'none',
+                        }}
                       >
                         <div className="w-[60%] h-[60%] flex items-center justify-center">
                           <Emoji3D emoji={emoji} className="w-full h-full object-contain" />
                         </div>
-                      </motion.button>
+                      </button>
                     );
                   })}
                 </div>
@@ -369,24 +393,29 @@ export default function JoinGame() {
                 value={teamName}
                 onChange={(e) => setTeamName(e.target.value)}
                 placeholder="YOUR TEAM NAME"
-                className="w-full px-4 py-3 bg-card border-2 border-primary rounded-xl text-primary text-center text-xl font-bungee shadow-[0_0_15px_rgba(0,255,255,0.2)] placeholder:text-primary/30 focus:shadow-[0_0_20px_rgba(0,255,255,0.5)] focus:outline-none transition-all uppercase"
+                className="w-full px-4 py-3.5 rounded-lg text-center text-xl font-bungee focus:outline-none transition-all uppercase tracking-wide"
+                style={{
+                  color: theme.color3,
+                  background: '#fff',
+                  border: `1.5px solid ${theme.color1}`,
+                }}
                 autoFocus
                 onKeyDown={(e) => e.key === 'Enter' && teamName.trim() && handleJoin()}
               />
 
-              <Button
+              <button
                 onClick={handleJoin}
                 disabled={!teamName.trim() || !selectedEmoji}
-                className="w-full py-4 h-auto text-lg font-bungee rounded-xl bg-transparent border-2 border-primary text-primary hover:bg-primary/10 animate-borderPulse disabled:opacity-50 disabled:animate-none transition-all"
+                className="w-full flex items-center justify-center font-bungee uppercase text-sm rounded-[10px] py-4 transition-[filter,opacity] hover:brightness-110 disabled:opacity-40"
+                style={{ background: theme.color1, color: theme.onColor1 }}
               >
-                <LogIn className="w-5 h-5 mr-3" />
+                <LogIn className="w-5 h-5 mr-2.5" />
                 Join Game
-              </Button>
+              </button>
             </motion.div>
           )}
         </motion.div>
       </main>
-
     </div>
   );
 }

@@ -1,14 +1,14 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Pencil, Trash2, Copy, Play, FileText, Download, Upload, Lock } from 'lucide-react';
+import { Pencil, Trash2, Copy, FileText, Download, Upload, Lock } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { QuestionPack } from '@/types/host';
 import { exportPackAsJson, readJsonFile, parseImportedPack } from '@/lib/pack-io';
 import { toast } from '@/hooks/use-toast';
+import { gameThemes } from '@/lib/game-themes';
+
+const theme = gameThemes.find((g) => g.id === 'qgame')!;
 
 interface QuestionPackListProps {
   packs: QuestionPack[];
@@ -88,9 +88,9 @@ export function QuestionPackList({ packs, onEdit, onDelete, onDuplicate, onStart
           animate={{ opacity: 1 }}
           className="flex flex-col items-center justify-center py-16 text-center"
         >
-          <FileText className="w-12 h-12 text-muted-foreground/40 mb-4" />
-          <h3 className="text-lg font-semibold text-foreground">No question packs yet</h3>
-          <p className="text-sm text-muted-foreground mt-1">
+          <FileText className="w-12 h-12 mb-4" style={{ color: 'oklch(30% 0.02 195)', opacity: 0.3 }} />
+          <h3 className="text-lg font-semibold" style={{ color: 'oklch(24% 0.04 195)' }}>No question packs yet</h3>
+          <p className="text-sm mt-1" style={{ color: 'oklch(52% 0.02 195)' }}>
             Create your first question pack or import one from a JSON file.
           </p>
         </motion.div>
@@ -109,10 +109,13 @@ export function QuestionPackList({ packs, onEdit, onDelete, onDuplicate, onStart
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {packs.map((pack, i) => {
           const completedCount = pack.questions.filter(q => q.text.trim() && q.answer.trim()).length;
           const totalCount = pack.questions.length;
+          const isReady = completedCount === totalCount;
+          const locked = !!pack.packPassword && !user;
+          const totalRounds = pack.questions.length ? Math.max(...pack.questions.map(q => q.round)) : 0;
 
           return (
             <motion.div
@@ -120,104 +123,132 @@ export function QuestionPackList({ packs, onEdit, onDelete, onDuplicate, onStart
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
+              className="rounded-[14px] overflow-hidden bg-white"
+              style={{ border: '1px solid oklch(88% 0.015 195)', boxShadow: '0 2px 8px rgba(0,0,0,.04)' }}
             >
-              <Card className="bg-card border-border hover:border-primary/30 transition-colors group">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-base truncate text-foreground">{pack.name || 'Untitled Pack'}</CardTitle>
-                      <CardDescription className="text-xs mt-1 line-clamp-2">
-                        {pack.description || 'No description'}
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {/* Progress */}
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 rounded-full bg-secondary">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all"
-                        style={{ width: `${(completedCount / totalCount) * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      {completedCount}/{totalCount}
-                    </span>
-                  </div>
+              <div
+                className="h-[88px] flex items-center justify-center relative"
+                style={{ background: locked ? 'oklch(80% 0.01 195)' : theme.color1 }}
+              >
+                <span className="font-bungee text-[34px]" style={{ color: locked ? 'oklch(55% 0.01 195)' : theme.onColor1 }}>
+                  {(pack.name || '?').trim().charAt(0).toUpperCase()}
+                </span>
+                {pack.packPassword && (
+                  <span className="absolute top-2.5 right-2.5 w-[26px] h-[26px] rounded-full bg-black/35 flex items-center justify-center">
+                    <Lock className="w-3 h-3 text-white" />
+                  </span>
+                )}
+              </div>
+              <div className="p-4">
+                <div className="font-bold text-[14.5px] truncate mb-1" style={{ color: 'oklch(24% 0.04 195)' }}>
+                  {pack.name || 'Untitled Pack'}
+                </div>
+                <p className="text-xs mb-3.5" style={{ color: 'oklch(52% 0.02 195)' }}>
+                  {totalRounds} rounds · {totalCount} questions
+                </p>
 
-                  {/* Metadata */}
-                  <p className="text-[11px] text-muted-foreground">
-                    Updated {new Date(pack.updatedAt).toLocaleDateString()}
-                  </p>
-
-                  {/* Actions */}
-                  <div className="flex gap-1.5 pt-1">
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => handleStartPack(pack)}
-                      disabled={completedCount < totalCount}
-                      className="flex-1 text-xs"
-                    >
-                      {!user && pack.packPassword ? <Lock className="w-3.5 h-3.5 mr-1" /> : <Play className="w-3.5 h-3.5 mr-1" />} 
-                      {!user && pack.packPassword ? "Unlock Pack" : "Start Game"}
-                    </Button>
-                    {user && (
-                      <>
-                        <Button variant="secondary" size="icon" className="h-8 w-8" onClick={() => onEdit(pack)}>
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button variant="secondary" size="icon" className="h-8 w-8" onClick={() => exportPackAsJson(pack)} title="Export as JSON">
-                          <Download className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button variant="secondary" size="icon" className="h-8 w-8" onClick={() => onDuplicate(pack.id)}>
-                          <Copy className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={() => onDelete(pack.id)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => handleStartPack(pack)}
+                    disabled={!isReady}
+                    className="flex-1 flex items-center justify-center font-semibold text-[13px] rounded-[7px] py-2.5 transition-[filter] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ background: locked ? 'oklch(93% 0.01 195)' : theme.color1, color: locked ? 'oklch(35% 0.02 195)' : theme.onColor1 }}
+                  >
+                    {locked ? 'Unlock & host' : 'Host'}
+                  </button>
+                  {user && (
+                    <>
+                      <button
+                        onClick={() => onEdit(pack)}
+                        className="h-9 w-9 flex-shrink-0 rounded-[7px] flex items-center justify-center transition-colors hover:bg-black/5"
+                        style={{ background: 'oklch(94% 0.01 195)', color: 'oklch(30% 0.02 195)' }}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => exportPackAsJson(pack)}
+                        title="Export as JSON"
+                        className="h-9 w-9 flex-shrink-0 rounded-[7px] flex items-center justify-center transition-colors hover:bg-black/5"
+                        style={{ background: 'oklch(94% 0.01 195)', color: 'oklch(30% 0.02 195)' }}
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => onDuplicate(pack.id)}
+                        className="h-9 w-9 flex-shrink-0 rounded-[7px] flex items-center justify-center transition-colors hover:bg-black/5"
+                        style={{ background: 'oklch(94% 0.01 195)', color: 'oklch(30% 0.02 195)' }}
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => onDelete(pack.id)}
+                        className="h-9 w-9 flex-shrink-0 rounded-[7px] flex items-center justify-center transition-colors hover:bg-red-50"
+                        style={{ background: 'oklch(94% 0.01 195)', color: 'oklch(58% 0.2 25)' }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
             </motion.div>
           );
         })}
       </div>
 
       {/* Password Dialog */}
-      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Password Required</DialogTitle>
-            <DialogDescription>
-              Please enter the password to open "{selectedPack?.name}".
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handlePasswordSubmit} className="space-y-4 pt-2">
-            <Input
-              type="password"
-              placeholder="Enter pack password"
-              value={passwordInput}
-              onChange={(e) => setPasswordInput(e.target.value)}
-              autoFocus
-            />
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setPasswordDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">Unlock</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {passwordDialogOpen && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-[100]"
+          style={{ background: 'rgba(20,25,30,.5)' }}
+          onClick={() => setPasswordDialogOpen(false)}
+        >
+          <div
+            className="w-[360px] bg-white rounded-[14px] p-7"
+            style={{ boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2.5 mb-1.5">
+              <Lock className="w-4 h-4" style={{ color: 'oklch(28% 0.06 195)' }} />
+              <div className="font-bungee text-sm uppercase" style={{ color: 'oklch(28% 0.06 195)' }}>
+                Protected pack
+              </div>
+            </div>
+            <p className="text-[13px] leading-relaxed mb-[18px]" style={{ color: 'oklch(45% 0.02 195)' }}>
+              Enter the password to open "{selectedPack?.name}".
+            </p>
+            <form onSubmit={handlePasswordSubmit}>
+              <input
+                type="password"
+                placeholder="••••"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                autoFocus
+                maxLength={8}
+                className="w-full box-border text-center text-2xl tracking-[.3em] rounded-lg py-3.5"
+                style={{ border: '1.5px solid oklch(80% 0.02 195)', color: 'oklch(28% 0.06 195)' }}
+              />
+              <div className="flex gap-2.5 mt-5">
+                <button
+                  type="button"
+                  onClick={() => setPasswordDialogOpen(false)}
+                  className="flex-1 font-bungee uppercase text-xs py-3 rounded-[7px]"
+                  style={{ background: 'transparent', color: 'oklch(30% 0.02 195)', border: '1.5px solid oklch(30% 0.02 195 / .2)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 font-bungee uppercase text-xs py-3 rounded-[7px]"
+                  style={{ background: theme.color1, color: theme.onColor1 }}
+                >
+                  Unlock
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

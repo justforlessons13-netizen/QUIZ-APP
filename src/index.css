@@ -27,6 +27,41 @@
   font-display: swap;
 }
 
+.cube-scene {
+  width: 260px;
+  height: 260px;
+  perspective: 900px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cube {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  transform-style: preserve-3d;
+  animation: cubeSpin 16s linear infinite;
+}
+.cube-face {
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  top: 0;
+  left: 0;
+  border: 2px solid oklch(97% 0.012 195 / .55);
+  transition: background 0.3s;
+}
+.cube-front { transform: translateZ(90px); }
+.cube-back { transform: rotateY(180deg) translateZ(90px); }
+.cube-right { transform: rotateY(90deg) translateZ(90px); }
+.cube-left { transform: rotateY(-90deg) translateZ(90px); }
+.cube-top { transform: rotateX(90deg) translateZ(90px); }
+.cube-bottom { transform: rotateX(-90deg) translateZ(90px); }
+@keyframes cubeSpin {
+  from { transform: rotateX(-18deg) rotateY(0deg); }
+  to { transform: rotateX(-18deg) rotateY(360deg); }
+}
+
 @layer base {
   :root {
     --background: 225 40% 8%;

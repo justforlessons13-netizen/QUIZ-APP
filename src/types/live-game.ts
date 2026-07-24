@@ -56,11 +56,15 @@ export interface LiveGameState {
   gameCode: string;     // <--- ADDED: Stored in Firebase!
   revealStep?: number;  // <--- RESTORED: Projector podium sync
   currentRuleIndex?: number; // <--- ADDED: For Game Rules sync
+  roundStepIndex?: number; // Shared Grading/Reveal within-round stepper position (host <-> projector sync)
+  winnerConfettiPlays?: number; // Increment to (re)trigger the Final Standings podium's confetti, host <-> projector sync
   lotteryState?: {
     min: number;
     max: number;
     remainingPool: number[];
     currentDrawnNumber: number | null;
+    history: number[];
+    confettiPlays: number; // Increment to (re)trigger the projector's celebration burst
   };
 }
 
@@ -85,5 +89,7 @@ export function createLiveGame(sessionId: string, packId: string, packName: stri
     gameCode: Math.random().toString(36).substring(2, 6).toUpperCase(), // <--- Generates ONCE when DB doc is created
     revealStep: 0,
     currentRuleIndex: 0,
+    roundStepIndex: 0,
+    winnerConfettiPlays: 0,
   };
 }

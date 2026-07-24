@@ -1,8 +1,11 @@
 import { motion } from 'framer-motion';
-import { Mic, ChevronRightCircle } from 'lucide-react';
+import { Mic, Users } from 'lucide-react';
 import { Question } from '@/types/game';
 import { GameTimer } from '@/components/game/GameTimer';
 import { useEffect, useRef, useState } from 'react';
+import { gameThemes, alpha } from '@/lib/game-themes';
+
+const theme = gameThemes.find((g) => g.id === 'qgame')!;
 
 interface QuestionDisplayProps {
   question: Question;
@@ -17,6 +20,8 @@ interface QuestionDisplayProps {
   projectorMode?: boolean;
   timerActive?: boolean;
   packName?: string; // ← pack name shown in top center
+  answeredCount?: number;
+  teamsTotal?: number;
 }
 
 // ─── Animated Waveform ────────────────────────────────────────────────────────
@@ -92,12 +97,49 @@ function useAutoFitText(
   }, [dep]);
 }
 
+// ─── Progress ring ────────────────────────────────────────────────────────────
+
+const RING_R = 42;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_R;
+
+function ProgressRing({
+  progress,
+  color,
+  children,
+}: {
+  progress: number; // 0..1, remaining
+  color: string;
+  children: React.ReactNode;
+}) {
+  const offset = RING_CIRCUMFERENCE * (1 - Math.max(0, Math.min(1, progress)));
+  return (
+    <div className="relative w-[92px] h-[92px]">
+      <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r={RING_R} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="7" />
+        <circle
+          cx="50" cy="50" r={RING_R}
+          fill="none"
+          stroke={color}
+          strokeWidth="7"
+          strokeLinecap="round"
+          strokeDasharray={RING_CIRCUMFERENCE}
+          strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 1s linear' }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">{children}</div>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function QuestionDisplay({
   question,
   round,
+  totalRounds,
   questionInRound,
+  totalInRound,
   timeLeft,
   maxTime,
   onCollectAnswers,
@@ -105,6 +147,8 @@ export function QuestionDisplay({
   timerActive,
   onActivate,
   packName,
+  answeredCount = 0,
+  teamsTotal = 0,
 }: QuestionDisplayProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -118,6 +162,7 @@ export function QuestionDisplay({
   const isImage = !!question.mediaUrl && !isAudio && !isVideo;
   const hasMedia = !!question.mediaUrl;
   const shouldLoop = maxTime <= 45;
+  const hasOptions = question.type === 'mcq' && !!question.options?.length;
 
   const defaultFontSize = !hasMedia ? 52 : 38;
 
@@ -128,6 +173,9 @@ export function QuestionDisplay({
   }, [timerActive, timeLeft, maxTime]);
 
   const isLowTime = isActivated && timeLeft <= 5 && timeLeft > 0;
+  const timerColor = isLowTime ? '#f87171' : theme.color1;
+  const timerProgress = maxTime > 0 ? timeLeft / maxTime : 0;
+  const questionProgress = totalInRound > 0 ? questionInRound / totalInRound : 0;
 
   useEffect(() => {
     if (!isActivated || !hasMedia) return;
@@ -166,51 +214,56 @@ export function QuestionDisplay({
         </div>
       )}
 
-      {/* ── TOP BAR ── */}
-      {/* Three columns: R/Q badge | pack name | timer — all with underline */}
-      <div className="w-full grid grid-cols-3 items-start flex-none mb-6">
-
-        {/* Left — R1 / Q2 underlined */}
-        <div className="flex items-start">
+      {/* ── Countdown ring (top-left) ── */}
+      <div className="fixed top-6 left-6 md:left-12 z-20">
+        <ProgressRing progress={timerProgress} color={timerColor}>
           <span
-            className="font-bungee text-[20px] text-[#adbbff] tracking-wider leading-none"
-            style={{ textDecoration: 'underline', textDecorationColor: 'rgba(173,187,255,0.7)', textUnderlineOffset: '6px', textDecorationThickness: '3px' }}
-          >
-            R{round} /&nbsp;Q{questionInRound}
-          </span>
-        </div>
-
-        {/* Center — Pack name */}
-        <div className="flex items-start justify-center">
-          <span className="font-bungee text-[14px] text-[#adbbff]/70 tracking-widest leading-none uppercase text-center">
-            {packName || ''}
-          </span>
-        </div>
-
-        {/* Right — Timer underlined */}
-        <div className="flex items-start justify-end">
-          <span
-            className={`font-bungee text-[20px] tracking-wider leading-none transition-colors duration-300 ${isLowTime ? 'text-red-400 animate-pulse' : 'text-[#adbbff]'
-              }`}
-            style={{
-              textDecoration: 'underline',
-              textDecorationColor: isLowTime ? 'rgba(248,113,113,0.7)' : 'rgba(173,187,255,0.7)',
-              textUnderlineOffset: '6px',
-              textDecorationThickness: '3px',
-            }}
+            className={`font-mono text-[18px] font-extrabold tabular-nums ${isLowTime ? 'animate-pulse' : ''}`}
+            style={{ color: timerColor }}
           >
             {formatTime(isActivated ? timeLeft : maxTime)}
           </span>
+        </ProgressRing>
+      </div>
+
+      {/* ── Question-number ring (top-right) ── */}
+      <div className="fixed top-6 right-6 md:right-12 z-20">
+        <ProgressRing progress={questionProgress} color={theme.color1}>
+          <div className="flex flex-col items-center leading-none">
+            <span className="text-[19px] font-extrabold text-white">{questionInRound}</span>
+            <span className="text-[10px] font-semibold text-white/65">of {totalInRound}</span>
+          </div>
+        </ProgressRing>
+      </div>
+
+      {/* ── TOP BAR ── */}
+      <div className="w-full flex flex-col items-center flex-none mb-4 gap-1.5">
+        <div
+          className="font-bungee text-[11px] uppercase tracking-widest px-4 py-1.5 rounded-full"
+          style={{ background: alpha(theme.color1, 0.15), border: `1px solid ${alpha(theme.color1, 0.35)}`, color: theme.color1 }}
+        >
+          Round {round} of {totalRounds}
         </div>
+        {packName && (
+          <span className="font-bungee text-[12px] text-white/50 tracking-widest uppercase text-center">
+            {packName}
+          </span>
+        )}
+        {teamsTotal > 0 && (
+          <div className="flex items-center gap-1.5 text-[13px] font-bold" style={{ color: theme.color1 }}>
+            <Users className="w-3.5 h-3.5" />
+            {answeredCount}/{teamsTotal}
+          </div>
+        )}
       </div>
 
       {/* ── TEXT ONLY — vertically centered ── */}
       {!hasMedia && (
-        <div className="flex-1 min-h-0 flex items-center justify-center">
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-6">
           <div
             ref={textContainerRef}
             className="w-full text-center"
-            style={{ maxHeight: '70vh' }}
+            style={{ maxHeight: hasOptions ? '40vh' : '70vh' }}
           >
             <h2
               ref={textRef}
@@ -220,6 +273,26 @@ export function QuestionDisplay({
               {question.text}
             </h2>
           </div>
+
+          {hasOptions && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
+              {question.options!.map((opt, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 rounded-xl px-5 py-4 text-left text-[17px] font-semibold text-white/90"
+                  style={{ background: '#13131f', border: `1px solid ${alpha(theme.color1, 0.3)}` }}
+                >
+                  <span
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-[13px] font-extrabold flex-shrink-0"
+                    style={{ background: alpha(theme.color1, 0.25), color: theme.color1 }}
+                  >
+                    {String.fromCharCode(65 + i)}
+                  </span>
+                  {opt}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -315,17 +388,18 @@ export function QuestionDisplay({
           {!isActivated ? (
             <button
               onClick={handleActivate}
-              className="bg-[#adbbff] text-[#120524] font-bungee text-[15px] px-6 py-1.5 rounded-[10px] hover:scale-105 active:scale-95 transition-transform uppercase tracking-wider"
+              className="font-bungee text-[14px] px-11 py-4 rounded-[10px] hover:scale-105 active:scale-95 transition-transform uppercase tracking-widest min-w-[300px] text-center"
+              style={{ background: 'transparent', border: `2px solid ${theme.color1}`, color: theme.color1, boxShadow: `0 0 20px ${alpha(theme.color1, 0.3)}` }}
             >
               Start Music &amp; Timer
             </button>
           ) : (
             <button
               onClick={onCollectAnswers}
-              className="bg-[#adbbff] text-[#120524] font-bungee text-[15px] pl-5 pr-4 py-1.5 rounded-[10px] hover:scale-105 active:scale-95 transition-transform uppercase tracking-wider flex items-center gap-2"
+              className="font-bungee text-[14px] px-11 py-4 rounded-[10px] hover:scale-105 active:scale-95 transition-transform uppercase tracking-widest min-w-[300px] text-center"
+              style={{ background: 'transparent', border: `2px solid ${theme.color1}`, color: theme.color1, boxShadow: `0 0 20px ${alpha(theme.color1, 0.3)}` }}
             >
               Collect Answers
-              <ChevronRightCircle className="w-4 h-4 fill-[#120524] text-[#adbbff]" />
             </button>
           )}
         </motion.div>

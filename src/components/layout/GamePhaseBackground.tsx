@@ -1,55 +1,34 @@
-import { useEffect, useState } from 'react';
 import { HostGamePhase } from '@/types/live-game';
+import { gameThemes } from '@/lib/game-themes';
 
-// Updated Mapping with specific names
-const VIDEO_MAP: Record<string, string> = {
-  // Phase 1: Lobby & Rules (Intro Video)
-  'team-setup':   '/assets/bg-intro.mp4',
-  'game-rules':   '/assets/bg-intro.mp4',
-  
-  // Phase 2: High Energy / Results (Game/Hype Video)
-  'leaderboard':  '/assets/bg-game.mp4',  
-  'reveal':       '/assets/bg-game.mp4',
-  'final-reveal': '/assets/bg-game.mp4',
-  'finished':     '/assets/bg-game.mp4',
-  
-  // Phase 3: Thinking / Focus (Question Video)
-  'question':     '/assets/bg-question.mp4', 
-  'grading':      '/assets/bg-question.mp4',
-  'round-rules':  '/assets/bg-question.mp4',
-  
-  // Fallback
-  'default':      '/assets/bg-intro.mp4', 
+const theme = gameThemes.find((g) => g.id === 'qgame')!;
+
+// Matches the source design exactly: Lobby gets a flat dark background, every other
+// in-game screen gets the same radial gradient tinted with the active theme color.
+const RADIAL_GRADIENT = `radial-gradient(ellipse at 50% 0%, color-mix(in oklch, ${theme.color1} 18%, oklch(10% 0.02 195)) 0%, oklch(8% 0.015 195) 60%)`;
+const FLAT_DARK = 'oklch(10% 0.015 195)';
+
+const BACKGROUND_MAP: Record<string, string> = {
+  'team-setup': FLAT_DARK,
+  'game-rules': RADIAL_GRADIENT,
+  'round-rules': RADIAL_GRADIENT,
+  'question': RADIAL_GRADIENT,
+  'grading': RADIAL_GRADIENT,
+  'reveal': RADIAL_GRADIENT,
+  'lottery': RADIAL_GRADIENT,
+  'leaderboard': RADIAL_GRADIENT,
+  'final-reveal': RADIAL_GRADIENT,
+  'final-standings': RADIAL_GRADIENT,
+  'finished': RADIAL_GRADIENT,
 };
 
 export function GamePhaseBackground({ phase }: { phase: HostGamePhase }) {
-  const [source, setSource] = useState(VIDEO_MAP['team-setup']);
-  
-  useEffect(() => {
-    // Get the video for the current phase, or fall back to default
-    const newSource = VIDEO_MAP[phase] || VIDEO_MAP['default'];
-    
-    // Only update state if the source actually changes
-    if (newSource !== source) {
-      setSource(newSource);
-    }
-  }, [phase, source]);
+  const background = BACKGROUND_MAP[phase] || FLAT_DARK;
 
   return (
-    <div className="fixed inset-0 -z-50 overflow-hidden bg-black">
-      {/* Dark overlay to ensure white text is always readable */}
-      <div className="absolute inset-0 bg-black/50 z-10" />
-      
-      <video
-        key={source} // Forces the video element to replace when source changes
-        autoPlay
-        muted
-        loop
-        playsInline
-        className="absolute inset-0 w-full h-full object-cover opacity-60 transition-opacity duration-1000"
-      >
-        <source src={source} type="video/mp4" />
-      </video>
-    </div>
+    <div
+      className="fixed inset-0 -z-50 transition-[background] duration-700"
+      style={{ background }}
+    />
   );
 }

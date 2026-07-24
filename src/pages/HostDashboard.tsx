@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Plus, LayoutDashboard, Radio, LogOut, LogIn, Lock } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { ArrowLeft, Plus, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQuestionPacks } from '@/hooks/useQuestionPacks';
@@ -12,8 +12,9 @@ import { GameSessionList } from '@/components/host/GameSessionList';
 import { useSessions } from '@/hooks/useSessions';
 import { toast } from '@/hooks/use-toast';
 import { getAuth, onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { gameThemes, alpha } from '@/lib/game-themes';
+
+const theme = gameThemes.find((g) => g.id === 'qgame')!;
 
 type View = 'list' | 'editor';
 
@@ -123,37 +124,72 @@ export default function HostDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-radial-dark flex flex-col">
+    <div className="min-h-screen flex flex-col" style={{ background: 'oklch(96% 0.012 195)' }}>
       {/* Header */}
-      <header className="flex items-center justify-between p-4 border-b border-border/50">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
-            <ArrowLeft className="w-4 h-4 mr-1" /> Home
-          </Button>
+      <header
+        className="flex items-center justify-between px-6 sm:px-12 py-5 bg-white"
+        style={{ borderBottom: '1px solid oklch(88% 0.015 195)' }}
+      >
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate('/')}
+            title="Back"
+            className="w-[34px] h-[34px] rounded-full border flex items-center justify-center flex-shrink-0 transition-colors hover:bg-black/5"
+            style={{ borderColor: 'oklch(30% 0.06 195 / .25)', color: 'oklch(30% 0.06 195)' }}
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <span className="font-bungee text-base tracking-wide" style={{ color: theme.color1 }}>
+            PLAYHUB
+          </span>
           {view === 'list' && (
-            <h1 className="text-lg font-bold text-primary hidden sm:block">Host Dashboard</h1>
+            <>
+              <span className="w-px h-[22px] hidden sm:inline-block" style={{ background: 'oklch(88% 0.015 195)' }} />
+              <h1
+                className="text-[13px] font-bungee uppercase tracking-wide hidden sm:block"
+                style={{ color: 'oklch(30% 0.06 195)' }}
+              >
+                {theme.packsTitle}
+              </h1>
+            </>
           )}
         </div>
         <div className="flex items-center gap-2">
           {view === 'list' && user && (
-            <Button size="sm" onClick={handleCreateNew} className="box-glow-primary">
+            <Button size="sm" onClick={handleCreateNew} style={{ background: theme.color1, color: theme.onColor1 }}>
               <Plus className="w-4 h-4 mr-1" /> New Pack
             </Button>
           )}
           {user ? (
-            <Button variant="ghost" size="sm" onClick={handleLogout} title="Log Out">
-              <LogOut className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-3">
+              <span
+                className="text-xs font-semibold px-3 py-1.5 rounded-full"
+                style={{ color: theme.color3, background: alpha(theme.color1, 0.13) }}
+              >
+                Admin
+              </span>
+              <button
+                onClick={handleLogout}
+                className="font-bungee uppercase text-xs px-4 py-2 rounded-md transition-colors hover:bg-black/5"
+                style={{ background: 'transparent', color: 'oklch(30% 0.02 195)', border: '1.5px solid oklch(30% 0.02 195 / .2)' }}
+              >
+                Log out
+              </button>
+            </div>
           ) : (
-            <Button variant="ghost" size="sm" onClick={() => navigate('/admin')} title="Admin Login">
-              <LogIn className="w-4 h-4" />
-            </Button>
+            <button
+              onClick={() => navigate('/admin')}
+              className="font-bungee uppercase text-xs px-5 py-2.5 rounded-md text-white transition-[filter] hover:brightness-110"
+              style={{ background: 'oklch(30% 0.06 195)' }}
+            >
+              Log in as admin
+            </button>
           )}
         </div>
       </header>
 
       {/* Content */}
-      <main className="flex-1 p-4 md:p-6 max-w-3xl mx-auto w-full">
+      <main className="flex-1 px-6 sm:px-12 py-9 w-full">
         {view === 'editor' && editingPack ? (
           <QuestionPackEditor
             pack={editingPack}
@@ -166,28 +202,31 @@ export default function HostDashboard() {
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-6"
           >
-            <div className="text-center sm:text-left">
-              <h2 className="text-2xl font-bold text-foreground">
-                <span className="text-primary text-glow-primary">Quiz</span>Master Panel
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Create question packs and manage game sessions.
-              </p>
-            </div>
-
             <Tabs defaultValue="packs" className="w-full">
-              <TabsList className="w-full grid grid-cols-2 bg-secondary/50">
-                <TabsTrigger value="packs" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
-                  <LayoutDashboard className="w-4 h-4 mr-1.5" /> Packs ({packs.length})
-                </TabsTrigger>
-                <TabsTrigger value="sessions" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
-                  <Radio className="w-4 h-4 mr-1.5" /> Sessions ({sessions.length})
-                </TabsTrigger>
-              </TabsList>
+              <div className="flex justify-center mb-8">
+                <TabsList
+                  className="inline-flex gap-1.5 p-1 rounded-[10px]"
+                  style={{ background: 'oklch(94% 0.01 195)' }}
+                >
+                  <TabsTrigger
+                    value="packs"
+                    className="rounded-lg text-[13px] font-semibold px-4.5 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                    style={{ color: 'oklch(30% 0.02 195)' }}
+                  >
+                    Packs
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="sessions"
+                    className="rounded-lg text-[13px] font-semibold px-4.5 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                    style={{ color: 'oklch(30% 0.02 195)' }}
+                  >
+                    Sessions
+                  </TabsTrigger>
+                </TabsList>
+              </div>
 
-              <TabsContent value="packs" className="mt-4">
+              <TabsContent value="packs" className="mt-0">
                 <QuestionPackList
                   packs={packs}
                   onEdit={handleEdit}
@@ -199,16 +238,23 @@ export default function HostDashboard() {
                 />
               </TabsContent>
 
-              <TabsContent value="sessions" className="mt-4">
+              <TabsContent value="sessions" className="mt-0">
                 {!user ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
-                    <Lock className="w-8 h-8 text-muted-foreground/40" />
-                    <p className="text-sm text-muted-foreground font-sugo uppercase tracking-widest">
+                  <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+                    <Lock className="w-[26px] h-[26px]" style={{ color: 'oklch(30% 0.02 195)', opacity: 0.35 }} />
+                    <p
+                      className="text-[13px] uppercase tracking-wider"
+                      style={{ color: 'oklch(50% 0.02 195)' }}
+                    >
                       Log in as admin to track sessions
                     </p>
-                    <Button size="sm" variant="secondary" onClick={() => navigate('/admin')}>
-                      Admin Login
-                    </Button>
+                    <button
+                      onClick={() => navigate('/admin')}
+                      className="font-bungee uppercase text-xs px-6 py-2.5 rounded-md text-white transition-[filter] hover:brightness-110"
+                      style={{ background: 'oklch(30% 0.06 195)' }}
+                    >
+                      Log in as admin
+                    </button>
                   </div>
                 ) : (
                   <GameSessionList
@@ -223,37 +269,58 @@ export default function HostDashboard() {
       </main>
 
       {/* Password Protection Dialog */}
-      <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Lock className="w-5 h-5 text-primary" />
-              Protected Pack
-            </DialogTitle>
-            <DialogDescription>
-              Please enter the host password to start a session for <strong>{packToStart?.name}</strong>.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handlePasswordSubmit}>
-            <div className="py-4">
-              <Input
+      {isPasswordDialogOpen && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-[100]"
+          style={{ background: 'rgba(20,25,30,.5)' }}
+          onClick={() => setIsPasswordDialogOpen(false)}
+        >
+          <div
+            className="w-[360px] bg-white rounded-[14px] p-7"
+            style={{ boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2.5 mb-1.5">
+              <Lock className="w-4 h-4" style={{ color: 'oklch(28% 0.06 195)' }} />
+              <div className="font-bungee text-sm uppercase" style={{ color: 'oklch(28% 0.06 195)' }}>
+                Protected pack
+              </div>
+            </div>
+            <p className="text-[13px] leading-relaxed mb-[18px]" style={{ color: 'oklch(45% 0.02 195)' }}>
+              Enter the host PIN to start a session for <strong>{packToStart?.name}</strong>.
+            </p>
+            <form onSubmit={handlePasswordSubmit}>
+              <input
                 type="password"
-                placeholder="Enter PIN..."
+                placeholder="••••"
                 value={passwordAttempt}
                 onChange={(e) => setPasswordAttempt(e.target.value)}
                 autoFocus
-                className="text-center text-2xl tracking-widest font-bold"
+                maxLength={8}
+                className="w-full box-border text-center text-2xl tracking-[.3em] rounded-lg py-3.5"
+                style={{ border: '1.5px solid oklch(80% 0.02 195)', color: 'oklch(28% 0.06 195)' }}
               />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => setIsPasswordDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">Verify & Start</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <div className="flex gap-2.5 mt-5">
+                <button
+                  type="button"
+                  onClick={() => setIsPasswordDialogOpen(false)}
+                  className="flex-1 font-bungee uppercase text-xs py-3 rounded-[7px]"
+                  style={{ background: 'transparent', color: 'oklch(30% 0.02 195)', border: '1.5px solid oklch(30% 0.02 195 / .2)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 font-bungee uppercase text-xs py-3 rounded-[7px]"
+                  style={{ background: theme.color1, color: theme.onColor1 }}
+                >
+                  Verify &amp; start
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

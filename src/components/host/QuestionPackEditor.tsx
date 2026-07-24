@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { QuestionPack, createEmptyQuestion } from '@/types/host';
 import { Question } from '@/types/game';
@@ -248,6 +249,16 @@ export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }
                     }}
                     placeholder="Each rule on a new line..."
                     className="bg-secondary/50 border-border min-h-[100px] resize-none"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-primary uppercase">Lottery Draw After This Round</Label>
+                  <Switch
+                    checked={!!draft.lotteryAfterRound?.[r]}
+                    onCheckedChange={checked => {
+                      const newLottery = { ...draft.lotteryAfterRound, [r]: checked };
+                      updateMeta({ lotteryAfterRound: newLottery });
+                    }}
                   />
                 </div>
               </div>

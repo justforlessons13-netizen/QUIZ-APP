@@ -223,26 +223,27 @@ export function GameAudioController({
 
       {/* --- AUDIO CONTROLS (NO TEXT) --- */}
       {!hideControls && (
-        <footer className="fixed bottom-[44px] right-[55px] z-50 flex items-center gap-0 opacity-80 transition-opacity hover:opacity-100 font-sugo">
+        <footer className="fixed bottom-[24px] right-[24px] z-50 flex items-center gap-2.5">
           {/* Play/Pause Button */}
           <button
             onClick={togglePlay}
             disabled={isLoading || !track}
-            className="flex items-center justify-center transition-all disabled:opacity-50 opacity-80 hover:opacity-100 hover:scale-110 active:scale-95"
+            title={isPlaying ? 'Pause' : 'Play'}
+            className="w-10 h-10 rounded-[11px] bg-white/[0.07] border border-white/[0.12] flex items-center justify-center hover:scale-110 hover:bg-white/[0.12] active:scale-95 transition-all disabled:opacity-30"
           >
             {isLoading ? (
-              <Loader2 className="h-[20px] w-[20px] animate-spin text-white" />
+              <Loader2 className="h-[18px] w-[18px] animate-spin text-white" />
             ) : error ? (
-              <AlertCircle className="h-[20px] w-[20px] text-white" />
+              <AlertCircle className="h-[18px] w-[18px] text-white" />
             ) : isPlaying ? (
-              <img src="/pause.svg" alt="Pause" className="h-[20px] w-auto pointer-events-none" />
+              <img src="/pause.svg" alt="Pause" className="h-[18px] w-auto pointer-events-none" />
             ) : (
-              <img src="/play.svg" alt="Play" className="h-[20px] w-auto pointer-events-none" />
+              <img src="/play.svg" alt="Play" className="h-[18px] w-auto pointer-events-none" />
             )}
           </button>
 
           {/* Mute/Volume Button with Slider */}
-          <div style={{ position: 'relative' }} className="flex items-center justify-center ml-2">
+          <div style={{ position: 'relative' }} className="flex items-center justify-center">
             {showVolumeSlider && (
               <div
                 style={{
@@ -315,12 +316,13 @@ export function GameAudioController({
             <button
               onClick={() => setShowVolumeSlider(!showVolumeSlider)}
               disabled={!track}
-              className="flex items-center justify-center transition-all disabled:opacity-50 opacity-80 hover:opacity-100 hover:scale-110 active:scale-95"
+              title="Volume"
+              className="w-10 h-10 rounded-[11px] bg-white/[0.07] border border-white/[0.12] flex items-center justify-center hover:scale-110 hover:bg-white/[0.12] active:scale-95 transition-all disabled:opacity-30"
             >
               {isMuted || localVolume === 0 ? (
-                <img src="/mute.svg" alt="Muted" className="h-[20px] w-auto pointer-events-none" />
+                <img src="/mute.svg" alt="Muted" className="h-[18px] w-auto pointer-events-none" />
               ) : (
-                <img src="/volume.svg" alt="Volume" className="h-[20px] w-auto pointer-events-none" />
+                <img src="/volume.svg" alt="Volume" className="h-[18px] w-auto pointer-events-none" />
               )}
             </button>
           </div>
