@@ -392,234 +392,189 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
   if (game.phase === 'question') {
     if (!currentQuestion) return null;
     const isTimeUp = displayTime === 0;
+    const timerPct = Math.max(0, Math.min(1, displayTime / (currentQuestion.timeLimit || 45)));
+    const dash = 132 - 132 * timerPct;
 
     return (
       <motion.div
         key={`q-${game.currentQuestionIndex}`}
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -30 }}
-        className="flex flex-col items-center gap-5 w-full max-w-lg mx-auto px-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="flex-1 w-full flex flex-col min-h-0"
       >
-        <div className="flex items-center gap-3">
-          <span className="px-3 py-1 rounded-full bg-primary/15 text-primary text-sm font-semibold border border-primary/20">
+        {/* Fixed top row */}
+        <div className="flex-shrink-0 flex items-center justify-between px-6 md:px-10 pt-2">
+          <div className="relative w-[50px] h-[50px] flex items-center justify-center flex-shrink-0">
+            <svg width="50" height="50" viewBox="0 0 50 50" className="absolute top-0 left-0 -rotate-90">
+              <circle cx="25" cy="25" r="21" fill="none" stroke="hsl(var(--foreground) / 0.12)" strokeWidth="4" />
+              <circle cx="25" cy="25" r="21" fill="none" stroke="hsl(var(--primary))" strokeWidth="4" strokeLinecap="round" strokeDasharray="132" strokeDashoffset={dash} />
+            </svg>
+            <span className="font-bungee text-white text-sm">{displayTime}</span>
+          </div>
+          <span className="bg-primary/15 border border-primary/30 text-primary font-bungee text-[11px] tracking-wide uppercase px-4 py-2 rounded-2xl">
+            {currentQuestion.category || `Round ${currentQuestion.round}`}
+          </span>
+          <span className="bg-card border border-border text-foreground font-bungee text-[11px] px-3.5 py-2 rounded-2xl flex-shrink-0">
             Round {currentQuestion.round}
           </span>
-          <span className="text-muted-foreground text-sm">{currentQuestion.category}</span>
         </div>
 
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Clock className="w-4 h-4" />
-          <span className="text-2xl font-mono font-bold text-foreground">{displayTime}s</span>
-        </div>
+        {/* Scrollable middle */}
+        <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6 md:px-10 py-6 overflow-auto min-h-0 max-w-2xl mx-auto w-full">
+          <h2 className="text-lg md:text-xl font-bold text-center leading-tight text-foreground max-w-xl">
+            {currentQuestion.text}
+          </h2>
 
-        <h2 className="text-xl md:text-2xl font-bold text-center leading-tight text-foreground">
-          {currentQuestion.text}
-        </h2>
-
-        {/* Media */}
-        {currentQuestion.mediaUrl && (() => {
-          const mUrl = currentQuestion.mediaUrl.toLowerCase();
-          const mIsAudio = mUrl.includes('.mp3') || mUrl.includes('.wav') || mUrl.includes('.m4a') || mUrl.includes('.ogg');
-          const mIsVideo = mUrl.includes('.mp4') || mUrl.includes('.webm') || mUrl.includes('.mov');
-          const mIsImage = !mIsAudio && !mIsVideo;
-          if (mIsAudio) return null;
-          const isRevealed = game.timerActive || displayTime < game.timeLeft;
-          return (
-            <>
-              {mIsImage && (
-                <>
-                  <button
-                    onClick={() => isRevealed && setLightboxOpen(true)}
-                    className={`w-full rounded-xl overflow-hidden border border-border/50 bg-black/10 focus:outline-none transition-all ${isRevealed ? 'active:scale-95 cursor-pointer' : 'cursor-not-allowed'}`}
-                  >
-                    <div className="relative">
-                      <img
-                        src={currentQuestion.mediaUrl}
-                        alt="Question media"
-                        className={`w-full max-h-56 object-contain transition-all duration-700 ${isRevealed ? '' : 'blur-xl grayscale opacity-40'}`}
-                      />
-                      {!isRevealed && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="font-bungee text-[#adbbff] uppercase text-sm tracking-widest opacity-80">
-                            Waiting...
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    {isRevealed && (
-                      <p className="text-[10px] text-muted-foreground/60 text-center pb-1.5 font-sugo tracking-widest uppercase">
-                        Tap to enlarge
-                      </p>
-                    )}
-                  </button>
-                  {lightboxOpen && isRevealed && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-                      onClick={() => setLightboxOpen(false)}
+          {/* Media */}
+          {currentQuestion.mediaUrl && (() => {
+            const mUrl = currentQuestion.mediaUrl.toLowerCase();
+            const mIsAudio = mUrl.includes('.mp3') || mUrl.includes('.wav') || mUrl.includes('.m4a') || mUrl.includes('.ogg');
+            const mIsVideo = mUrl.includes('.mp4') || mUrl.includes('.webm') || mUrl.includes('.mov');
+            const mIsImage = !mIsAudio && !mIsVideo;
+            if (mIsAudio) return null;
+            const isRevealed = game.timerActive || displayTime < game.timeLeft;
+            return (
+              <>
+                {mIsImage && (
+                  <>
+                    <button
+                      onClick={() => isRevealed && setLightboxOpen(true)}
+                      className={`w-full rounded-xl overflow-hidden border border-border/50 bg-black/10 focus:outline-none transition-all ${isRevealed ? 'active:scale-95 cursor-pointer' : 'cursor-not-allowed'}`}
                     >
-                      <motion.img
-                        initial={{ scale: 0.85 }}
-                        animate={{ scale: 1 }}
-                        src={currentQuestion.mediaUrl}
-                        alt="Question media enlarged"
-                        className="max-w-full max-h-full object-contain rounded-lg"
-                        onClick={e => e.stopPropagation()}
-                      />
-                      <button
+                      <div className="relative">
+                        <img
+                          src={currentQuestion.mediaUrl}
+                          alt="Question media"
+                          className={`w-full max-h-56 object-contain transition-all duration-700 ${isRevealed ? '' : 'blur-xl grayscale opacity-40'}`}
+                        />
+                        {!isRevealed && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="font-bungee text-[#adbbff] uppercase text-sm tracking-widest opacity-80">
+                              Waiting...
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      {isRevealed && (
+                        <p className="text-[10px] text-muted-foreground/60 text-center pb-1.5 font-sugo tracking-widest uppercase">
+                          Tap to enlarge
+                        </p>
+                      )}
+                    </button>
+                    {lightboxOpen && isRevealed && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
                         onClick={() => setLightboxOpen(false)}
-                        className="absolute top-4 right-4 text-white/70 hover:text-white font-bungee text-sm bg-black/50 px-3 py-1.5 rounded-lg"
                       >
-                        ✕ Close
-                      </button>
-                    </motion.div>
-                  )}
-                </>
-              )}
-              {mIsVideo && (
-                <div className="w-full rounded-xl overflow-hidden border border-border/50 bg-black/10 relative transition-all duration-700">
-                  <video
-                    src={currentQuestion.mediaUrl}
-                    controls={isRevealed}
-                    playsInline
-                    className={`w-full max-h-56 object-contain transition-all duration-700 ${isRevealed ? '' : 'blur-xl grayscale opacity-40'}`}
-                  />
-                  {!isRevealed && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <span className="font-bungee text-[#adbbff] uppercase text-sm tracking-widest opacity-80">
-                        Waiting...
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          );
-        })()}
+                        <motion.img
+                          initial={{ scale: 0.85 }}
+                          animate={{ scale: 1 }}
+                          src={currentQuestion.mediaUrl}
+                          alt="Question media enlarged"
+                          className="max-w-full max-h-full object-contain rounded-lg"
+                          onClick={e => e.stopPropagation()}
+                        />
+                        <button
+                          onClick={() => setLightboxOpen(false)}
+                          className="absolute top-4 right-4 text-white/70 hover:text-white font-bungee text-sm bg-black/50 px-3 py-1.5 rounded-lg"
+                        >
+                          \u2715 Close
+                        </button>
+                      </motion.div>
+                    )}
+                  </>
+                )}
+                {mIsVideo && (
+                  <div className="w-full rounded-xl overflow-hidden border border-border/50 bg-black/10 relative transition-all duration-700">
+                    <video
+                      src={currentQuestion.mediaUrl}
+                      controls={isRevealed}
+                      playsInline
+                      className={`w-full max-h-56 object-contain transition-all duration-700 ${isRevealed ? '' : 'blur-xl grayscale opacity-40'}`}
+                    />
+                    {!isRevealed && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <span className="font-bungee text-[#adbbff] uppercase text-sm tracking-widest opacity-80">
+                          Waiting...
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
-        {isTimeUp && submitState === 'idle' && (
-          <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive font-bold w-full text-center">
-            Time's Up! 🛑
+          {isTimeUp && submitState === 'idle' && (
+            <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive font-bold w-full text-center">
+              Time's Up! \uD83D\uDED1
+            </div>
+          )}
+
+          <AnimatePresence mode="wait">
+            {isSubmitted ? (
+              <motion.div key="submitted" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                className="flex flex-col items-center gap-3 p-6 rounded-xl w-full max-w-md"
+                style={{ background: submitState === 'pending' ? 'hsl(var(--primary) / 0.06)' : 'hsl(var(--primary) / 0.10)', border: `1px solid hsl(var(--primary) / ${submitState === 'pending' ? '0.15' : '0.25'})` }}>
+                {submitState === 'pending' ? <Loader2 className="w-8 h-8 text-primary animate-spin" /> : <CheckCircle2 className="w-10 h-10 text-primary" />}
+                <p className="font-bold text-primary">{submitState === 'pending' ? 'Locking in...' : 'Answer Locked In!'}</p>
+                <p className="text-sm text-muted-foreground">"{submittedAnswerRef.current}"</p>
+                {myWager && <span className="text-xs text-accent">\u26A1 Go Hard wagered</span>}
+              </motion.div>
+            ) : submitState === 'failed' ? (
+              <motion.div key="failed" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                className="flex flex-col items-center gap-3 p-5 rounded-xl bg-destructive/10 border border-destructive/20 w-full max-w-md text-center">
+                <p className="font-bold text-destructive text-sm">Submission failed \u2014 tap to retry</p>
+                <Button size="sm" variant="destructive" onClick={retrySubmit} className="rounded-xl">Try Again</Button>
+              </motion.div>
+            ) : (
+              <motion.div key="input" className="w-full max-w-md flex flex-col gap-4">
+                {isMCQ ? (
+                  <div className="grid grid-cols-2 gap-3 w-full">
+                    {currentQuestion.options?.map(option => (
+                      <button key={option} onClick={() => setMyAnswer(option)} disabled={isTimeUp}
+                        className={`p-4 rounded-xl border-2 text-sm font-medium transition-all duration-200 ${myAnswer === option ? 'border-primary bg-primary/15 text-primary' : 'border-border bg-card hover:border-primary/40 text-card-foreground'} ${isTimeUp ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <input type="text" value={myAnswer} onChange={e => setMyAnswer(e.target.value)}
+                    placeholder={isTimeUp ? "Too late!" : "Type your answer..."} disabled={isTimeUp}
+                    className={`w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 text-center text-lg ${isTimeUp ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    autoFocus onKeyDown={e => e.key === 'Enter' && myAnswer.trim() && !isTimeUp && submitAnswer()} />
+                )}
+
+                {isFinalRound && (
+                  <div className={`flex items-center gap-4 p-4 w-full rounded-xl border transition-all ${myWager ? 'bg-accent/10 border-accent/30' : 'bg-card border-border'}`}>
+                    <button onClick={() => !isTimeUp && setMyWager(!myWager)} disabled={isTimeUp}
+                      className={`relative w-14 h-8 rounded-full transition-all ${myWager ? 'bg-accent' : 'bg-muted'} ${isTimeUp ? 'opacity-50' : ''}`}>
+                      <span className={`absolute w-6 h-6 rounded-full bg-foreground top-1 transition-all ${myWager ? 'left-7' : 'left-1'}`} />
+                    </button>
+                    <div className="flex-1">
+                      <p className={`font-bold text-sm ${myWager ? 'text-accent' : 'text-muted-foreground'}`}>Go Hard {myWager ? '\u26A1' : ''}</p>
+                      <p className="text-xs text-muted-foreground">{myWager ? 'Correct = +2 \u00B7 Wrong = \u22122' : 'Safe play: +1 or 0'}</p>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Pinned footer */}
+        {!isSubmitted && submitState !== 'failed' && (
+          <div className="flex-shrink-0 flex justify-center border-t border-border/50 py-4">
+            <Button onClick={submitAnswer} disabled={!myAnswer.trim() || isTimeUp}
+              className="w-full max-w-md py-3 h-auto text-base font-bold rounded-xl">
+              Lock In Answer
+            </Button>
           </div>
         )}
-
-        {/* ── Submitted state ── */}
-        <AnimatePresence mode="wait">
-          {isSubmitted ? (
-            <motion.div
-              key="submitted"
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl w-full"
-              style={{
-                background: submitState === 'pending'
-                  ? 'hsl(var(--primary) / 0.06)'
-                  : 'hsl(var(--primary) / 0.10)',
-                border: `1px solid hsl(var(--primary) / ${submitState === 'pending' ? '0.15' : '0.25'})`,
-              }}
-            >
-              {submitState === 'pending' ? (
-                <Loader2 className="w-8 h-8 text-primary animate-spin" />
-              ) : (
-                <CheckCircle2 className="w-10 h-10 text-primary" />
-              )}
-              <p className="font-bold text-primary">
-                {submitState === 'pending' ? 'Locking in...' : 'Answer Locked In!'}
-              </p>
-              <p className="text-sm text-muted-foreground">"{submittedAnswerRef.current}"</p>
-              {myWager && <span className="text-xs text-accent">⚡ Go Hard wagered</span>}
-            </motion.div>
-          ) : submitState === 'failed' ? (
-            <motion.div
-              key="failed"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="flex flex-col items-center gap-3 p-5 rounded-xl bg-destructive/10 border border-destructive/20 w-full text-center"
-            >
-              <p className="font-bold text-destructive text-sm">Submission failed — tap to retry</p>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={retrySubmit}
-                className="rounded-xl"
-              >
-                Try Again
-              </Button>
-            </motion.div>
-          ) : (
-            <motion.div key="input" className="w-full flex flex-col gap-4">
-              {/* MCQ or text input */}
-              {isMCQ ? (
-                <div className="grid grid-cols-2 gap-3 w-full">
-                  {currentQuestion.options?.map(option => (
-                    <button
-                      key={option}
-                      onClick={() => setMyAnswer(option)}
-                      disabled={isTimeUp}
-                      className={`p-4 rounded-xl border-2 text-sm font-medium transition-all duration-200 ${myAnswer === option
-                        ? 'border-primary bg-primary/15 text-primary'
-                        : 'border-border bg-card hover:border-primary/40 text-card-foreground'
-                        } ${isTimeUp ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <input
-                  type="text"
-                  value={myAnswer}
-                  onChange={e => setMyAnswer(e.target.value)}
-                  placeholder={isTimeUp ? "Too late!" : "Type your answer..."}
-                  disabled={isTimeUp}
-                  className={`w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 text-center text-lg ${isTimeUp ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                  autoFocus
-                  onKeyDown={e => e.key === 'Enter' && myAnswer.trim() && !isTimeUp && submitAnswer()}
-                />
-              )}
-
-              {/* Wager toggle — Round 6 only */}
-              {isFinalRound && (
-                <div
-                  className={`flex items-center gap-4 p-4 w-full rounded-xl border transition-all ${myWager ? 'bg-accent/10 border-accent/30' : 'bg-card border-border'
-                    }`}
-                >
-                  <button
-                    onClick={() => !isTimeUp && setMyWager(!myWager)}
-                    disabled={isTimeUp}
-                    className={`relative w-14 h-8 rounded-full transition-all ${myWager ? 'bg-accent' : 'bg-muted'} ${isTimeUp ? 'opacity-50' : ''}`}
-                  >
-                    <span
-                      className={`absolute w-6 h-6 rounded-full bg-foreground top-1 transition-all ${myWager ? 'left-7' : 'left-1'
-                        }`}
-                    />
-                  </button>
-                  <div className="flex-1">
-                    <p className={`font-bold text-sm ${myWager ? 'text-accent' : 'text-muted-foreground'}`}>
-                      Go Hard {myWager ? '⚡' : ''}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {myWager ? 'Correct = +2 · Wrong = −2' : 'Safe play: +1 or 0'}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Lock In button */}
-              <Button
-                onClick={submitAnswer}
-                disabled={!myAnswer.trim() || isTimeUp}
-                className="w-full py-3 h-auto text-base font-bold rounded-xl"
-              >
-                Lock In Answer
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </motion.div>
     );
   }
