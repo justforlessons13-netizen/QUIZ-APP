@@ -85,7 +85,7 @@ export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }
   return (
     <div
       className="rounded-2xl overflow-hidden flex flex-col"
-      style={{ background: `radial-gradient(ellipse at 50% 0%, ${alpha(theme.color1, 0.13)} 0%, oklch(8% 0.015 195) 60%)` }}
+      style={{ background: `radial-gradient(ellipse at 50% 0%, rgba(168,150,255,0.16) 0%, rgb(18,20,24) 60%)` }}
     >
       <div className="flex items-center justify-between gap-4 px-7 py-[18px]" style={{ borderBottom: '1px solid rgba(255,255,255,.08)' }}>
         <div className="flex items-center gap-3.5">
