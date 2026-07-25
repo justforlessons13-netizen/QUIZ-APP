@@ -118,10 +118,10 @@ export function RoundReveal({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className={`flex flex-col items-center gap-5 w-full mx-auto px-4 ${projectorMode ? 'max-w-3xl' : 'max-w-lg'}`}
+      className="w-full flex-1 flex flex-col items-center px-4"
     >
-      {/* Header */}
-      <div className="text-center">
+      {/* Header — pinned top, not part of the centered content block */}
+      <div className="text-center flex-none" style={{ marginBottom: 8 }}>
         <div
           className={`inline-block font-bungee uppercase tracking-widest rounded-full mb-2 ${projectorMode ? 'text-sm px-6 py-2' : 'text-[11px] px-4 py-1.5'}`}
           style={{ background: alpha(theme.color1, 0.15), border: `1px solid ${alpha(theme.color1, 0.35)}`, color: theme.color1 }}
@@ -132,6 +132,8 @@ export function RoundReveal({
           Question {questionInRound} of {questions.length}
         </p>
       </div>
+
+      <div className={`flex-1 flex flex-col items-center justify-center gap-5 w-full mx-auto min-h-0 ${projectorMode ? 'max-w-3xl' : 'max-w-lg'}`}>
 
       {/* Question text */}
       <p className={`font-semibold text-center text-foreground ${projectorMode ? 'text-2xl max-w-2xl' : 'text-base max-w-md'}`}>
@@ -183,9 +185,11 @@ export function RoundReveal({
         </p>
       </div>
 
+      </div>
+
       {/* Stepper + Continue */}
       {!projectorMode && (
-        <div className="w-full flex flex-col items-center gap-3">
+        <div className="w-full flex flex-col items-center gap-3" style={{ padding: '14px 0 20px' }}>
           {questions.length > 1 && (
             <div className="flex items-center gap-4">
               <button

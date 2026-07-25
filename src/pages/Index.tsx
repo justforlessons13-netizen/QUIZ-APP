@@ -64,7 +64,7 @@ export default function Index() {
 
       {/* ── HERO ── */}
       <main className="relative z-10 flex-1">
-        <div className="grid md:grid-cols-2 items-center gap-10 px-6 sm:px-12 py-6 max-w-6xl mx-auto">
+        <div className="grid md:grid-cols-2 items-center gap-10 px-6 sm:px-12 py-6">
           <AnimatePresence mode="wait">
             <motion.div
               key={theme.id}

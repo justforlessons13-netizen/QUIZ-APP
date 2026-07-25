@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { HostGamePhase } from '@/types/live-game';
-import { Volume2, VolumeX, Play, Pause, AlertCircle, Loader2 } from 'lucide-react';
+import { Play, Pause, AlertCircle, Loader2 } from 'lucide-react';
+
+const VOLUME_STEPS = [0, 25, 50, 75, 100];
 
 const MUSIC_MAP: Record<string, string> = {
   'team-setup': '/assets/music-setup.mp3',
@@ -38,13 +40,11 @@ export function GameAudioController({
   });
   
   const [error, setError] = useState<string | null>(null);
-  const [isMuted, setIsMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   // Detect the exact moment timerActive flips ON so we can restart music from 0
   const prevTimerActive = useRef(false);
 
-  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [localVolume, setLocalVolume] = useState(() => {
     const saved = localStorage.getItem('quiz_audio_volume');
     return saved ? parseFloat(saved) : volume;
@@ -135,7 +135,7 @@ export function GameAudioController({
       audio.currentTime = 0;
     }
 
-    audio.volume = isMuted || forceMuted ? 0 : localVolume;
+    audio.volume = forceMuted ? 0 : localVolume;
 
     const timerJustStarted = timerActive && !prevTimerActive.current;
     prevTimerActive.current = timerActive;
@@ -174,7 +174,7 @@ export function GameAudioController({
       }
       setIsPlaying(false);
     }
-  }, [blobUrl, isMuted, localVolume, timerActive, phase, hasMediaContent, forceMuted]);
+  }, [blobUrl, localVolume, timerActive, phase, hasMediaContent, forceMuted]);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
@@ -191,9 +191,12 @@ export function GameAudioController({
     }
   };
 
-  const toggleMute = () => {
-    setIsMuted(!isMuted);
-    if (audioRef.current) audioRef.current.volume = !isMuted ? 0 : localVolume;
+  const cycleVolume = () => {
+    const currentPercent = Math.round(localVolume * 100);
+    const currentIndex = VOLUME_STEPS.reduce((closest, step, i) =>
+      Math.abs(step - currentPercent) < Math.abs(VOLUME_STEPS[closest] - currentPercent) ? i : closest, 0);
+    const next = VOLUME_STEPS[(currentIndex + 1) % VOLUME_STEPS.length];
+    setLocalVolume(next / 100);
   };
 
   return (
@@ -223,7 +226,7 @@ export function GameAudioController({
 
       {/* --- AUDIO CONTROLS (NO TEXT) --- */}
       {!hideControls && (
-        <footer className="fixed bottom-[24px] right-[24px] z-50 flex items-center gap-2.5">
+        <footer className="fixed bottom-[20px] right-[32px] z-50 flex items-center gap-2.5">
           {/* Play/Pause Button */}
           <button
             onClick={togglePlay}
@@ -236,96 +239,35 @@ export function GameAudioController({
             ) : error ? (
               <AlertCircle className="h-[18px] w-[18px] text-white" />
             ) : isPlaying ? (
-              <img src="/pause.svg" alt="Pause" className="h-[18px] w-auto pointer-events-none" />
+              <Pause className="h-[15px] w-[15px] text-white/90" fill="currentColor" />
             ) : (
-              <img src="/play.svg" alt="Play" className="h-[18px] w-auto pointer-events-none" />
+              <Play className="h-[15px] w-[15px] text-white/90" fill="currentColor" />
             )}
           </button>
 
-          {/* Mute/Volume Button with Slider */}
-          <div style={{ position: 'relative' }} className="flex items-center justify-center">
-            {showVolumeSlider && (
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: 'calc(100% + 8px)',
-                  right: 0,
-                  width: '44px',
-                  height: '180px',
-                  background: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--primary))',
-                  borderRadius: '12px',
-                  padding: '10px 0',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '6px',
-                  zIndex: 50,
-                  overflow: 'hidden'
-                }}
-              >
-                <style>{`
-                  .vol-track {
-                    writing-mode: vertical-lr;
-                    direction: rtl;
-                    -webkit-appearance: none;
-                    appearance: none;
-                    width: 4px;
-                    flex: 1;
-                    background: rgba(173,187,255,0.15);
-                    border-radius: 4px;
-                    cursor: pointer;
-                    outline: none;
-                  }
-                  .vol-track::-webkit-slider-thumb {
-                    -webkit-appearance: none;
-                    appearance: none;
-                    width: 18px;
-                    height: 18px;
-                    border-radius: 50%;
-                    background: hsl(var(--primary));
-                    cursor: grab;
-                    margin-left: -7px;
-                  }
-                  .vol-track::-moz-range-thumb {
-                    width: 18px;
-                    height: 18px;
-                    border-radius: 50%;
-                    background: hsl(var(--primary));
-                    border: none;
-                    cursor: grab;
-                  }
-                `}</style>
-                <div className="text-primary font-bungee text-[10px] tracking-widest">
-                  {Math.round(localVolume * 100)}%
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value={localVolume}
-                  onChange={(e) => {
-                    setLocalVolume(parseFloat(e.target.value));
-                    setIsMuted(false);
-                  }}
-                  className="vol-track"
-                />
-              </div>
+          {/* Volume Button — click to cycle 0/25/50/75/100 */}
+          <button
+            onClick={cycleVolume}
+            disabled={!track}
+            title="Volume"
+            className="w-10 h-10 rounded-[11px] bg-white/[0.07] border border-white/[0.12] flex flex-col items-center justify-center gap-0.5 hover:scale-110 hover:bg-white/[0.12] active:scale-95 transition-all disabled:opacity-30 text-white/90"
+          >
+            {Math.round(localVolume * 100) === 0 ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 5 6 9H2v6h4l5 4z"></path>
+                <line x1="23" y1="9" x2="17" y2="15"></line>
+                <line x1="17" y1="9" x2="23" y2="15"></line>
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 5 6 9H2v6h4l5 4z"></path>
+                <path d="M15.5 8.5a5 5 0 0 1 0 7"></path>
+              </svg>
             )}
-            <button
-              onClick={() => setShowVolumeSlider(!showVolumeSlider)}
-              disabled={!track}
-              title="Volume"
-              className="w-10 h-10 rounded-[11px] bg-white/[0.07] border border-white/[0.12] flex items-center justify-center hover:scale-110 hover:bg-white/[0.12] active:scale-95 transition-all disabled:opacity-30"
-            >
-              {isMuted || localVolume === 0 ? (
-                <img src="/mute.svg" alt="Muted" className="h-[18px] w-auto pointer-events-none" />
-              ) : (
-                <img src="/volume.svg" alt="Volume" className="h-[18px] w-auto pointer-events-none" />
-              )}
-            </button>
-          </div>
+            <span className="text-[8px] font-bold leading-none text-white/90">
+              {Math.round(localVolume * 100) === 0 ? 'MUTE' : `${Math.round(localVolume * 100)}%`}
+            </span>
+          </button>
         </footer>
       )}
     </>

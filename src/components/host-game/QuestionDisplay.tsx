@@ -64,15 +64,6 @@ const AnimatedWaveform = ({ isActivated }: { isActivated: boolean }) => {
   );
 };
 
-// ─── Gradient text style ──────────────────────────────────────────────────────
-
-const gradientTextStyle: React.CSSProperties = {
-  background: 'linear-gradient(180deg, #e8e8e8 0%, #9a9a9a 60%, #6b6b6b 100%)',
-  WebkitBackgroundClip: 'text',
-  WebkitTextFillColor: 'transparent',
-  backgroundClip: 'text',
-};
-
 // ─── Auto-fit hook ────────────────────────────────────────────────────────────
 
 function useAutoFitText(
@@ -164,7 +155,7 @@ export function QuestionDisplay({
   const shouldLoop = maxTime <= 45;
   const hasOptions = question.type === 'mcq' && !!question.options?.length;
 
-  const defaultFontSize = !hasMedia ? 52 : 38;
+  const defaultFontSize = 30;
 
   useAutoFitText(textRef, textContainerRef, question.text, defaultFontSize, 22);
 
@@ -205,7 +196,7 @@ export function QuestionDisplay({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="relative flex flex-col w-full h-[calc(100dvh-100px)] md:h-[calc(100vh-100px)] max-w-[1920px] mx-auto px-6 md:px-12 z-10 pt-[3vh] pb-[90px]"
+      className="relative flex-1 flex flex-col w-full max-w-[1920px] mx-auto px-10 pt-8 z-10"
     >
       {/* Hidden timer — tick sounds only */}
       {isActivated && (
@@ -215,7 +206,7 @@ export function QuestionDisplay({
       )}
 
       {/* ── Countdown ring (top-left) ── */}
-      <div className="fixed top-6 left-6 md:left-12 z-20">
+      <div className="absolute top-6 left-8 z-20">
         <ProgressRing progress={timerProgress} color={timerColor}>
           <span
             className={`font-mono text-[18px] font-extrabold tabular-nums ${isLowTime ? 'animate-pulse' : ''}`}
@@ -227,7 +218,7 @@ export function QuestionDisplay({
       </div>
 
       {/* ── Question-number ring (top-right) ── */}
-      <div className="fixed top-6 right-6 md:right-12 z-20">
+      <div className="absolute top-6 right-8 z-20">
         <ProgressRing progress={questionProgress} color={theme.color1}>
           <div className="flex flex-col items-center leading-none">
             <span className="text-[19px] font-extrabold text-white">{questionInRound}</span>
@@ -237,20 +228,26 @@ export function QuestionDisplay({
       </div>
 
       {/* ── TOP BAR ── */}
-      <div className="w-full flex flex-col items-center flex-none mb-4 gap-1.5">
+      <div className="w-full flex flex-col items-center flex-none">
         <div
-          className="font-bungee text-[11px] uppercase tracking-widest px-4 py-1.5 rounded-full"
-          style={{ background: alpha(theme.color1, 0.15), border: `1px solid ${alpha(theme.color1, 0.35)}`, color: theme.color1 }}
+          className="font-bungee text-[11px] uppercase"
+          style={{
+            letterSpacing: '0.12em', padding: '6px 16px', borderRadius: 16, marginBottom: 6,
+            background: alpha(theme.color1, 0.133), border: `1px solid ${alpha(theme.color1, 0.271)}`, color: theme.color1,
+          }}
         >
           Round {round} of {totalRounds}
         </div>
         {packName && (
-          <span className="font-bungee text-[12px] text-white/50 tracking-widest uppercase text-center">
+          <span
+            className="text-center"
+            style={{ fontSize: 12, color: 'oklch(70% 0.01 195)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 10 }}
+          >
             {packName}
           </span>
         )}
         {teamsTotal > 0 && (
-          <div className="flex items-center gap-1.5 text-[13px] font-bold" style={{ color: theme.color1 }}>
+          <div className="flex items-center gap-1.5" style={{ fontSize: 14, fontWeight: 700, color: theme.color1, marginBottom: 12 }}>
             <Users className="w-3.5 h-3.5" />
             {answeredCount}/{teamsTotal}
           </div>
@@ -267,8 +264,8 @@ export function QuestionDisplay({
           >
             <h2
               ref={textRef}
-              className="font-sugo uppercase tracking-widest leading-snug drop-shadow-md w-full"
-              style={{ fontSize: `${defaultFontSize}px`, ...gradientTextStyle }}
+              className="leading-snug w-full"
+              style={{ fontSize: `${defaultFontSize}px`, fontWeight: 600, color: '#fff' }}
             >
               {question.text}
             </h2>
@@ -306,8 +303,8 @@ export function QuestionDisplay({
           >
             <h2
               ref={textRef}
-              className="font-sugo uppercase tracking-widest leading-snug drop-shadow-md w-full"
-              style={{ fontSize: `${defaultFontSize}px`, ...gradientTextStyle }}
+              className="leading-snug w-full"
+              style={{ fontSize: `${defaultFontSize}px`, fontWeight: 600, color: '#fff' }}
             >
               {question.text}
             </h2>
@@ -335,19 +332,28 @@ export function QuestionDisplay({
           >
             <h2
               ref={textRef}
-              className="font-sugo uppercase tracking-widest leading-snug drop-shadow-md w-full"
-              style={{ fontSize: `${defaultFontSize}px`, ...gradientTextStyle }}
+              className="leading-snug w-full"
+              style={{ fontSize: `${defaultFontSize}px`, fontWeight: 600, color: '#fff' }}
             >
               {question.text}
             </h2>
           </div>
-          <motion.div
-            className="flex-1 min-h-0 w-full overflow-hidden rounded-none"
-            animate={{ filter: isActivated ? 'none' : 'grayscale(1) blur(8px)', opacity: isActivated ? 1 : 0.45 }}
-            transition={{ duration: 0.7 }}
-          >
-            <img src={question.mediaUrl} alt="Visual clue" className="w-full h-full object-contain" />
-          </motion.div>
+          <div className="flex-1 min-h-0 w-full flex items-center justify-center">
+            <motion.div
+              className="overflow-hidden rounded-2xl"
+              style={{
+                width: '100%',
+                maxWidth: projectorMode ? 1100 : 720,
+                maxHeight: projectorMode ? '62vh' : '45vh',
+                border: `1px solid ${alpha(theme.color1, 0.2)}`,
+                background: 'rgba(0,0,0,0.2)',
+              }}
+              animate={{ filter: isActivated ? 'none' : 'grayscale(1) blur(8px)', opacity: isActivated ? 1 : 0.45 }}
+              transition={{ duration: 0.7 }}
+            >
+              <img src={question.mediaUrl} alt="Visual clue" className="w-full h-full object-contain" style={{ maxHeight: projectorMode ? '62vh' : '45vh' }} />
+            </motion.div>
+          </div>
         </>
       )}
 
@@ -361,29 +367,39 @@ export function QuestionDisplay({
           >
             <h2
               ref={textRef}
-              className="font-sugo uppercase tracking-widest leading-snug drop-shadow-md w-full"
-              style={{ fontSize: `${defaultFontSize}px`, ...gradientTextStyle }}
+              className="leading-snug w-full"
+              style={{ fontSize: `${defaultFontSize}px`, fontWeight: 600, color: '#fff' }}
             >
               {question.text}
             </h2>
           </div>
-          <motion.div
-            className="flex-1 min-h-0 w-full overflow-hidden rounded-none bg-black/20"
-            animate={{ filter: isActivated ? 'none' : 'grayscale(1) blur(8px)', opacity: isActivated ? 1 : 0.45 }}
-            transition={{ duration: 0.7 }}
-          >
-            <video ref={videoRef} src={question.mediaUrl} loop={shouldLoop} playsInline className="w-full h-full object-contain" />
-          </motion.div>
+          <div className="flex-1 min-h-0 w-full flex items-center justify-center">
+            <motion.div
+              className="overflow-hidden rounded-2xl"
+              style={{
+                width: '100%',
+                maxWidth: projectorMode ? 1100 : 720,
+                maxHeight: projectorMode ? '62vh' : '45vh',
+                border: `1px solid ${alpha(theme.color1, 0.2)}`,
+                background: 'rgba(0,0,0,0.2)',
+              }}
+              animate={{ filter: isActivated ? 'none' : 'grayscale(1) blur(8px)', opacity: isActivated ? 1 : 0.45 }}
+              transition={{ duration: 0.7 }}
+            >
+              <video ref={videoRef} src={question.mediaUrl} loop={shouldLoop} playsInline className="w-full h-full object-contain" style={{ maxHeight: projectorMode ? '62vh' : '45vh' }} />
+            </motion.div>
+          </div>
         </>
       )}
 
-      {/* ── HOST BUTTONS — exact relative Y-alignment to global icons ── */}
+      {/* ── HOST BUTTONS — normal flow row after content, matches design's separate bottom row ── */}
       {!projectorMode && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="fixed bottom-[38px] left-1/2 -translate-x-1/2 z-[60]"
+          className="w-full flex flex-col items-center flex-none"
+          style={{ padding: '14px 0 20px' }}
         >
           {!isActivated ? (
             <button

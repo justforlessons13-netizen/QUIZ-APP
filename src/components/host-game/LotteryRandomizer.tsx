@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PartyPopper } from 'lucide-react';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { playDrumroll, playRevealStep } from '@/lib/sounds';
 import { gameThemes, alpha } from '@/lib/game-themes';
-import { Confetti } from './Confetti';
 
 const theme = gameThemes.find((g) => g.id === 'qgame')!;
-const GOLD_COLORS = ['hsl(45, 95%, 55%)', 'hsl(45, 90%, 70%)', '#fff8dc'];
+const DPR = typeof window !== 'undefined' ? window.devicePixelRatio : 1;
 
 interface LotteryRandomizerProps {
   lotteryState?: {
@@ -38,37 +37,60 @@ export function LotteryRandomizer({
   const [max, setMax] = useState(150);
   const [displayNumber, setDisplayNumber] = useState<number | string>('???');
   const [isAnimating, setIsAnimating] = useState(false);
-  const [showBurst, setShowBurst] = useState(false);
+  const [confettiActive, setConfettiActive] = useState(false);
 
   const prevDrawnNumberRef = useRef(lotteryState?.currentDrawnNumber);
   const prevConfettiPlaysRef = useRef(lotteryState?.confettiPlays ?? 0);
+  const burstIntervalRef = useRef<ReturnType<typeof setInterval>>();
+  const burstStopTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
-    // If a new number has been drawn, animate to it
+    // The roll animation is host-only — the projector just reflects the drawn number directly.
     const current = lotteryState?.currentDrawnNumber;
-    if (current !== undefined && current !== null && current !== prevDrawnNumberRef.current) {
+    if (current === undefined || current === null) {
+      setDisplayNumber('???');
+    } else if (projectorMode) {
+      setDisplayNumber(current);
+    } else if (current !== prevDrawnNumberRef.current) {
       prevDrawnNumberRef.current = current;
       startRollingAnimation(current);
-    } else if (current === undefined || current === null) {
-      setDisplayNumber('???');
     } else if (!isAnimating) {
       // If we join late and there's already a drawn number, just show it
       setDisplayNumber(current);
     }
-  }, [lotteryState?.currentDrawnNumber]);
+  }, [lotteryState?.currentDrawnNumber, projectorMode]);
 
-  // Confetti burst — fires whenever the shared confettiPlays counter changes (a draw or a
-  // manual replay), synced through Firestore so a separate projector window sees it too.
+  // Confetti — fires 5 pulses (1.4s active / 5s apart), matching the design's replayLotteryConfetti,
+  // whenever the shared confettiPlays counter changes (a draw or a manual replay), synced through
+  // Firestore so a separate projector window sees it too.
   useEffect(() => {
     const plays = lotteryState?.confettiPlays ?? 0;
     if (plays > 0 && plays !== prevConfettiPlaysRef.current) {
       prevConfettiPlaysRef.current = plays;
-      setShowBurst(true);
-      const timer = setTimeout(() => setShowBurst(false), 3000);
-      return () => clearTimeout(timer);
+
+      let pulses = 0;
+      const maxPulses = 5;
+      const fire = () => {
+        pulses++;
+        setConfettiActive(true);
+        clearTimeout(burstStopTimerRef.current);
+        burstStopTimerRef.current = setTimeout(() => setConfettiActive(false), 1400);
+        if (pulses >= maxPulses) clearInterval(burstIntervalRef.current);
+      };
+      fire();
+      clearInterval(burstIntervalRef.current);
+      burstIntervalRef.current = setInterval(fire, 5000);
+    } else {
+      prevConfettiPlaysRef.current = plays;
     }
-    prevConfettiPlaysRef.current = plays;
   }, [lotteryState?.confettiPlays]);
+
+  useEffect(() => {
+    return () => {
+      clearInterval(burstIntervalRef.current);
+      clearTimeout(burstStopTimerRef.current);
+    };
+  }, []);
 
   const startRollingAnimation = (finalNumber: number) => {
     setIsAnimating(true);
@@ -101,51 +123,76 @@ export function LotteryRandomizer({
   };
 
   const needsInit = !lotteryState;
+  const isRevealed = !!lotteryState && lotteryState.currentDrawnNumber !== null && !isAnimating;
+
+  // Projector mirrors the design's separate fullscreen overlay: no badge, no card, no controls —
+  // just the giant shimmering number, the auto-firing gold confetti once revealed, and a
+  // "Congratulations" banner that stays up for as long as the round stays revealed.
+  if (projectorMode) {
+    return (
+      <div className="w-full flex-1 flex flex-col items-center justify-center gap-6 outline-none relative z-10">
+        {confettiActive && (
+          <DotLottieReact
+            src="https://lottie.host/79266ebc-8b4a-4b7c-a1a0-326ac1057a23/JU5NbpIPAL.lottie"
+            autoplay
+            renderConfig={{ devicePixelRatio: DPR, autoResize: true }}
+            style={{
+              position: 'fixed', top: '50%', left: '50%', width: '100%', height: '100%',
+              minWidth: '130vh', minHeight: '130vh', transform: 'translate(-50%,-50%) rotate(90deg)', zIndex: 1,
+              filter: 'grayscale(1) sepia(1) saturate(4) hue-rotate(-8deg) brightness(1.05)',
+              pointerEvents: 'none',
+            }}
+          />
+        )}
+
+        {isRevealed && (
+          <div
+            className="congrats-text font-bungee uppercase tracking-widest text-[34px] relative z-10"
+            style={{
+              backgroundImage: 'linear-gradient(90deg, hsl(45,90%,60%) 0%, #fff8dc 50%, hsl(45,90%,60%) 100%)',
+              WebkitBackgroundClip: 'text',
+              backgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              color: 'transparent',
+            }}
+          >
+            Congratulations
+          </div>
+        )}
+
+        <span
+          className="congrats-text font-bungee text-transparent bg-clip-text text-[180px] leading-[180px] relative z-10"
+          style={{ backgroundImage: 'linear-gradient(90deg, hsl(45,90%,60%) 0%, #fff8dc 50%, hsl(45,90%,60%) 100%)' }}
+        >
+          {displayNumber}
+        </span>
+
+        {lotteryState?.currentDrawnNumber === null && (
+          <p className="text-white/50 text-xl relative z-10">Waiting for host to draw...</p>
+        )}
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col items-center justify-center w-full max-w-4xl mx-auto px-4 outline-none relative z-10">
-      {showBurst && (
-        <>
-          <Confetti colors={GOLD_COLORS} />
-          {projectorMode && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="fixed top-[12%] left-1/2 -translate-x-1/2 z-50 font-bungee uppercase tracking-widest text-4xl md:text-6xl"
-              style={{
-                backgroundImage: 'linear-gradient(90deg, hsl(45,90%,60%) 0%, #fff8dc 50%, hsl(45,90%,60%) 100%)',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                color: 'transparent',
-              }}
-            >
-              Congratulations
-            </motion.div>
-          )}
-        </>
-      )}
-
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-2xl text-center space-y-8"
+    <div className="w-full flex-1 flex flex-col items-center max-w-4xl mx-auto px-4 outline-none relative z-10">
+      <div
+        className="font-bungee text-[12px] uppercase tracking-widest px-[18px] py-[7px] rounded-2xl"
+        style={{ background: alpha(theme.color1, 0.19), border: `1px solid ${alpha(theme.color1, 0.44)}`, color: theme.color1 }}
       >
-        <div
-          className="inline-block font-bungee text-[12px] uppercase tracking-widest px-5 py-2 rounded-full mb-2"
-          style={{ background: alpha(theme.color1, 0.15), border: `1px solid ${alpha(theme.color1, 0.4)}`, color: theme.color1 }}
-        >
-          Lottery Draw
-        </div>
+        Lottery Draw
+      </div>
 
+      <div className="flex-1 w-full max-w-[560px] flex flex-col items-center justify-center gap-7 min-h-0">
         {/* Slot Machine Display */}
         <div
-          className="p-8 rounded-2xl border-4 flex flex-col items-center justify-center min-h-[250px] relative overflow-hidden backdrop-blur-sm"
+          className="w-full rounded-[20px] flex items-center justify-center relative overflow-hidden"
           style={{
-            background: 'rgba(0,0,0,0.3)',
-            borderColor: alpha(theme.color1, 0.35),
-            boxShadow: `0 0 50px ${alpha(theme.color1, 0.15)}`,
+            background: 'rgba(255,255,255,0.05)',
+            border: `3px solid ${alpha(theme.color1, 0.33)}`,
+            boxShadow: `0 0 50px ${alpha(theme.color1, 0.13)}`,
+            minHeight: 200,
+            padding: 36,
           }}
         >
           <AnimatePresence mode="popLayout">
@@ -155,7 +202,7 @@ export function LotteryRandomizer({
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -50, opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className={`font-sugo text-transparent bg-clip-text ${projectorMode ? 'text-[150px] leading-[150px]' : 'text-[100px] leading-[100px]'}`}
+              className="font-bungee text-transparent bg-clip-text text-[88px] leading-[88px]"
               style={{ backgroundImage: `linear-gradient(180deg, #ffffff, ${theme.color1})` }}
             >
               {displayNumber}
@@ -163,109 +210,107 @@ export function LotteryRandomizer({
           </AnimatePresence>
         </div>
 
-        {/* Draw history */}
-        {!needsInit && lotteryState.history.length > 0 && (
-          <div className="flex flex-wrap gap-2 justify-center">
-            {lotteryState.history.map((n, i) => (
-              <span
-                key={i}
-                className="font-bold text-sm px-3 py-1.5 rounded-lg"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff' }}
-              >
-                {n}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Controls - Only visible to host */}
-        {!projectorMode && (
-          <div className="bg-card/40 backdrop-blur-md border border-white/10 rounded-2xl p-6 shadow-xl w-full max-w-md mx-auto space-y-6">
-            {needsInit ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2 text-left">
-                    <label className="text-sm text-white/70 font-bungee">Start Number</label>
-                    <Input
-                      type="number"
-                      value={min}
-                      onChange={(e) => setMin(Number(e.target.value))}
-                      className="bg-black/50 border-white/20 text-white font-bungee text-lg"
-                    />
-                  </div>
-                  <div className="space-y-2 text-left">
-                    <label className="text-sm text-white/70 font-bungee">End Number</label>
-                    <Input
-                      type="number"
-                      value={max}
-                      onChange={(e) => setMax(Number(e.target.value))}
-                      className="bg-black/50 border-white/20 text-white font-bungee text-lg"
-                    />
-                  </div>
+        {/* Controls */}
+        {(
+          needsInit ? (
+            <div
+              className="w-full rounded-2xl p-6 flex flex-col gap-4"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}
+            >
+              <div className="flex gap-3.5">
+                <div className="flex-1 flex flex-col gap-1.5 text-left">
+                  <label className="text-xs uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                    Start Number
+                  </label>
+                  <Input
+                    type="number"
+                    value={min}
+                    onChange={(e) => setMin(Number(e.target.value))}
+                    className="bg-black/40 border-white/20 text-white text-base h-auto py-2.5 px-3 rounded-lg"
+                  />
                 </div>
-                <div className="flex gap-4 mt-2">
-                  <Button
-                    onClick={handleInitialize}
-                    className="flex-1 font-bold py-6 text-sm md:text-base tracking-wider"
-                    style={{ background: theme.color1, color: theme.onColor1 }}
-                  >
-                    SAVE RANGE
-                  </Button>
-                  <Button
-                    onClick={onContinue}
-                    variant="outline"
-                    className="flex-1 font-bold py-6 text-sm md:text-base tracking-wider"
-                    style={{ borderColor: theme.color1, color: theme.color1 }}
-                  >
-                    SKIP LOTTERY
-                  </Button>
+                <div className="flex-1 flex flex-col gap-1.5 text-left">
+                  <label className="text-xs uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                    End Number
+                  </label>
+                  <Input
+                    type="number"
+                    value={max}
+                    onChange={(e) => setMax(Number(e.target.value))}
+                    className="bg-black/40 border-white/20 text-white text-base h-auto py-2.5 px-3 rounded-lg"
+                  />
                 </div>
               </div>
-            ) : (
-              <div className="space-y-4">
-                <p className="text-white/70 font-bungee text-sm mb-4">
-                  Numbers remaining: {lotteryState.remainingPool.length}
-                </p>
-                <div className="flex gap-3">
-                  <Button
-                    onClick={onDraw}
-                    disabled={isAnimating || lotteryState.remainingPool.length === 0}
-                    className="flex-1 font-bold py-6 text-base tracking-wider disabled:opacity-50"
-                    style={{ background: theme.color1, color: theme.onColor1 }}
-                  >
-                    DRAW {lotteryState.currentDrawnNumber !== null ? 'AGAIN' : 'NUMBER'}
-                  </Button>
-                  <Button
-                    onClick={onReplayConfetti}
-                    disabled={isAnimating || lotteryState.currentDrawnNumber === null}
-                    variant="outline"
-                    title="Replay confetti"
-                    className="w-14 flex-shrink-0 py-6"
-                    style={{ borderColor: 'rgba(255,255,255,0.18)', color: 'hsl(45, 90%, 60%)' }}
-                  >
-                    <PartyPopper className="w-5 h-5" />
-                  </Button>
-                  <Button
-                    onClick={onContinue}
-                    disabled={isAnimating}
-                    variant="outline"
-                    className="flex-1 font-bold py-6 text-base tracking-wider"
-                    style={{ borderColor: theme.color1, color: theme.color1 }}
-                  >
-                    CONTINUE
-                  </Button>
-                </div>
+              <div className="flex gap-3.5">
+                <Button
+                  onClick={handleInitialize}
+                  className="flex-1 h-auto font-bungee text-[13px] tracking-wider uppercase rounded-[9px] py-3.5"
+                  style={{ background: theme.color1, color: theme.onColor1 }}
+                >
+                  Save Range
+                </Button>
+                <Button
+                  onClick={onContinue}
+                  variant="outline"
+                  className="flex-1 h-auto font-bungee text-[13px] tracking-wider uppercase rounded-[9px] py-3 bg-transparent hover:bg-transparent hover:text-current"
+                  style={{ borderColor: theme.color1, color: theme.color1, borderWidth: 2 }}
+                >
+                  Skip Lottery
+                </Button>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          ) : (
+            <div className="w-full flex flex-col gap-4">
+              <p className="text-sm text-center" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                Numbers remaining: {lotteryState.remainingPool.length}
+              </p>
+              <div className="flex gap-3.5">
+                <Button
+                  onClick={onDraw}
+                  disabled={isAnimating || lotteryState.remainingPool.length === 0}
+                  className="flex-1 h-auto font-bungee text-sm tracking-wider uppercase rounded-[10px] py-4"
+                  style={{ background: theme.color1, color: theme.onColor1 }}
+                >
+                  {lotteryState.currentDrawnNumber !== null ? 'Draw Again' : 'Draw Number'}
+                </Button>
+                <Button
+                  onClick={onReplayConfetti}
+                  disabled={isAnimating || lotteryState.currentDrawnNumber === null}
+                  variant="outline"
+                  title="Replay confetti"
+                  className="w-12 h-auto flex-shrink-0 rounded-[10px] text-[18px] hover:bg-[rgba(255,255,255,0.08)] hover:text-current"
+                  style={{ background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.18)', color: 'hsl(45, 90%, 60%)' }}
+                >
+                  🎉
+                </Button>
+                <Button
+                  onClick={onContinue}
+                  disabled={isAnimating}
+                  variant="outline"
+                  className="flex-1 h-auto font-bungee text-sm tracking-wider uppercase rounded-[10px] py-3.5 bg-transparent hover:bg-transparent hover:text-current"
+                  style={{ borderColor: theme.color1, color: theme.color1, borderWidth: 2 }}
+                >
+                  Continue
+                </Button>
+              </div>
 
-        {projectorMode && lotteryState?.currentDrawnNumber === null && (
-          <p className="text-white/50 text-xl font-sugo animate-pulse mt-8">
-            Waiting for host to spin...
-          </p>
+              {lotteryState.history.length > 0 && (
+                <div className="flex flex-wrap gap-2 justify-center mt-1.5">
+                  {lotteryState.history.map((n, i) => (
+                    <span
+                      key={i}
+                      className="font-bold text-sm px-3 py-1.5 rounded-lg"
+                      style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff' }}
+                    >
+                      {n}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }

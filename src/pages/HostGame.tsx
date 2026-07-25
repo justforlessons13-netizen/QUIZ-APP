@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, RotateCcw } from 'lucide-react';
+import { ChevronLeft, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLiveGame } from '@/hooks/useLiveGame';
 import { QuestionPack } from '@/types/host';
@@ -20,6 +20,7 @@ import { RemoteControlModal } from '@/components/host-game/RemoteControlModal';
 import { HostLeaderboardModal } from '@/components/host-game/HostLeaderboardModal';
 import { unlockWebAudio } from '@/lib/sounds';
 import { gameThemes, alpha } from '@/lib/game-themes';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
 const theme = gameThemes.find((g) => g.id === 'qgame')!;
 
@@ -127,7 +128,8 @@ function LiveGameController({
     pack.id,
     pack.name,
     pack.questions,
-    pack.lotteryAfterRound
+    pack.lotteryAfterRound,
+    pack.standingsAfterRound
   );
 
   const gameCode = game.gameCode;
@@ -206,7 +208,9 @@ function LiveGameController({
     ? 'See Final Standings'
     : pack.lotteryAfterRound?.[game.currentRound]
       ? 'See Lottery Draw'
-      : 'See Leaderboard';
+      : pack.standingsAfterRound?.[game.currentRound] === false
+        ? 'Continue to Next Round'
+        : 'See Leaderboard';
 
   return (
     <div className="min-h-screen relative flex flex-col overflow-hidden">
@@ -233,14 +237,14 @@ function LiveGameController({
               className="w-[34px] h-[34px] rounded-full border flex items-center justify-center flex-shrink-0 transition-colors hover:bg-white/10"
               style={{ borderColor: alpha(theme.color1, 0.35), color: theme.color1 }}
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ChevronLeft className="w-5 h-5" />
             </button>
             <span className="font-bungee text-base tracking-wide" style={{ color: theme.color1 }}>
               PLAYHUB
             </span>
           </div>
 
-          <div className="text-xs uppercase tracking-widest text-white/60">
+          <div className="text-sm text-white/60" style={{ fontFamily: '"Space Grotesk", system-ui, sans-serif' }}>
             {pack.name}
           </div>
 
@@ -251,46 +255,26 @@ function LiveGameController({
         </header>
       )}
 
-      {/* Projector Minimal Header for team-setup phase */}
-      {projectorMode && game.phase === 'team-setup' && (
-        <header className="absolute top-0 left-0 right-0 z-50 flex justify-between items-center w-full p-6 text-[#adbbff] font-bungee text-sm md:text-base tracking-wider transition-all pointer-events-none">
-          <div className="flex-1"></div>
-          <div className="opacity-80 text-center flex-1 uppercase tracking-widest pointer-events-auto">
-            {pack.name}
-          </div>
-          <div className="flex-1 flex justify-end">
-            <button
-              onClick={toggleProjectorMode}
-              className={`p-2 rounded-lg hover:bg-white/10 text-[#adbbff]/60 hover:text-white transition-all duration-300 pointer-events-auto ${showFullscreenBtn ? 'opacity-100' : 'opacity-0'}`}
-            >
-              {document.fullscreenElement ? <i className="ti ti-arrows-minimize text-[24px]" /> : <i className="ti ti-arrows-maximize text-[24px]" />}
-            </button>
-          </div>
-        </header>
-      )}
-
-      {/* Hidden Projector Utility Bar (Shows only on hover) */}
-      {projectorMode && game.phase !== 'team-setup' && (
-        <div className="fixed top-0 left-0 right-0 h-[60px] z-50 flex justify-end items-start p-4 opacity-0 hover:opacity-100 transition-opacity duration-300">
-          <div className="flex items-center gap-4">
-            {game.phase !== 'team-setup' && game.phase !== 'finished' && (
-              <span className="text-xs text-muted-foreground bg-card/80 backdrop-blur px-3 py-1.5 rounded-lg border border-border/50 pointer-events-auto">
-                R{game.currentRound} · Q{questionNumberInRound}/{totalQuestionsInRound}
-              </span>
-            )}
-            <button onClick={toggleProjectorMode} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 text-[#adbbff]/60 hover:text-white transition-all duration-300 pointer-events-auto font-bungee tracking-widest uppercase text-[12px]">
-              {document.fullscreenElement ? (
-                <><i className="ti ti-arrows-minimize text-[20px]" /> Exit</>
-              ) : (
-                <><i className="ti ti-arrows-maximize text-[20px]" /> Fullscreen</>
-              )}
-            </button>
-            {game.phase !== 'team-setup' && (
-              <button onClick={resetGame} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 text-[#adbbff]/60 hover:text-white transition-all duration-300 pointer-events-auto font-bungee tracking-widest uppercase text-[12px]">
-                <RotateCcw className="w-4 h-4" /> Reset
-              </button>
-            )}
-          </div>
+      {/* Projector Controls (fullscreen toggle + close) — same minimal pair for every phase */}
+      {projectorMode && (
+        <div
+          className={`absolute z-50 flex gap-2 transition-opacity duration-300 ${showFullscreenBtn ? 'opacity-100' : 'opacity-0'}`}
+          style={{ top: 20, right: 24 }}
+        >
+          <button
+            onClick={toggleProjectorMode}
+            className="w-[34px] h-[34px] rounded-lg bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+            title={document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'}
+          >
+            {document.fullscreenElement ? <i className="ti ti-arrows-minimize text-[15px]" /> : <i className="ti ti-arrows-maximize text-[15px]" />}
+          </button>
+          <button
+            onClick={() => window.close()}
+            className="w-[34px] h-[34px] rounded-lg bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-colors text-[15px]"
+            title="Close projector window"
+          >
+            ✕
+          </button>
         </div>
       )}
 
@@ -307,6 +291,7 @@ function LiveGameController({
               projectorMode={projectorMode}
               sessionId={sessionId}
               packId={pack.id}
+              packName={pack.name}
             />
           )}
 
@@ -358,18 +343,14 @@ function LiveGameController({
                 key={`grading-placeholder-${game.currentQuestionIndex}`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex flex-col items-center text-center mt-6 px-4"
+                className="flex flex-col items-center text-center gap-5"
               >
-                {/* Loader matches the specific neon blue theme */}
-                <div className="w-16 h-16 border-[4px] border-[#adbbff] border-t-transparent rounded-full animate-spin mb-4" />
-
-                {/* Bungee Font matching Canva sizing */}
-                <h2 className="font-bungee text-[32px] md:text-[45px] text-[#adbbff] uppercase tracking-wider mt-8 mb-4 drop-shadow-md">
-                  Host is grading...
+                <DotLottieReact src="/lottie/grading-hourglass.json" autoplay loop renderConfig={{ devicePixelRatio: (typeof window !== 'undefined' ? window.devicePixelRatio : 1), autoResize: true }} style={{ width: 260, height: 260 }} />
+                <h2 className="font-bungee text-[26px] uppercase tracking-widest text-center" style={{ color: theme.color1 }}>
+                  Grading in progress
                 </h2>
-
-                <p className="font-sugo text-[20px] md:text-[26px] uppercase tracking-widest bg-gradient-to-r from-[#d9d9d9] via-[#b4b9d6] to-[#737373] bg-clip-text text-transparent">
-                  Check your device when grading completes.
+                <p className="text-[15px] uppercase tracking-widest" style={{ color: 'oklch(70% 0.01 195)' }}>
+                  Round {game.currentRound} — {pack.name}
                 </p>
               </motion.div>
             ) : (
@@ -461,35 +442,35 @@ function LiveGameController({
 
       {/* ── GLOBAL HOST BOTTOM ACTIONS ── */}
       {!projectorMode && (
-        <div className="fixed bottom-[24px] left-[24px] z-[60] flex items-center gap-2.5 pointer-events-none">
+        <div className="fixed bottom-[20px] left-[32px] z-[60] flex items-center gap-2.5 pointer-events-none">
           <div className="flex items-center gap-2.5 pointer-events-auto">
             <button
               onClick={() => setPhase('team-setup')}
-              className="w-10 h-10 rounded-[11px] bg-white/[0.07] border border-white/[0.12] flex items-center justify-center hover:scale-110 hover:bg-white/[0.12] active:scale-95 transition-all"
+              className="w-10 h-10 rounded-[11px] bg-white/[0.07] border border-white/[0.12] flex items-center justify-center hover:scale-110 hover:bg-white/[0.12] active:scale-95 transition-all text-white/90"
               title="Home (Lobby)"
             >
-              <img src="/home.svg" alt="Home" className="h-[18px] w-auto pointer-events-none" />
-            </button>
-            <button
-              onClick={openProjectorWindow}
-              className="w-10 h-10 rounded-[11px] bg-white/[0.07] border border-white/[0.12] flex items-center justify-center hover:scale-110 hover:bg-white/[0.12] active:scale-95 transition-all"
-              title="Open Projector Window"
-            >
-              <img src="/project.svg" alt="Projector" className="h-[18px] w-auto pointer-events-none" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3l9 7v11a1 1 0 0 1-1 1h-6v-7H10v7H4a1 1 0 0 1-1-1V10z"></path></svg>
             </button>
             <button
               onClick={() => setShowRemote(true)}
-              className="w-10 h-10 rounded-[11px] bg-white/[0.07] border border-white/[0.12] flex items-center justify-center hover:scale-110 hover:bg-white/[0.12] active:scale-95 transition-all"
+              className="w-10 h-10 rounded-[11px] bg-white/[0.07] border border-white/[0.12] flex items-center justify-center hover:scale-110 hover:bg-white/[0.12] active:scale-95 transition-all text-white/90"
               title="Remote Control"
             >
-              <img src="/remote.svg" alt="Remote" className="h-[18px] w-auto pointer-events-none" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="2" width="8" height="20" rx="4"></rect><circle cx="12" cy="7" r="1.2" fill="currentColor" stroke="none"></circle><line x1="12" y1="12" x2="12" y2="16"></line></svg>
             </button>
             <button
               onClick={() => setShowLeaderboard(true)}
-              className="w-10 h-10 rounded-[11px] bg-white/[0.07] border border-white/[0.12] flex items-center justify-center hover:scale-110 hover:bg-white/[0.12] active:scale-95 transition-all"
+              className="w-10 h-10 rounded-[11px] bg-white/[0.07] border border-white/[0.12] flex items-center justify-center hover:scale-110 hover:bg-white/[0.12] active:scale-95 transition-all text-white/90"
               title="Edit Scores"
             >
-              <img src="/leaderboard.svg" alt="Edit Scores" className="h-[18px] w-auto pointer-events-none" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 21h8"></path><path d="M12 17v4"></path><path d="M7 4h10v5a5 5 0 0 1-10 0V4z"></path><path d="M17 5h2a2 2 0 0 1 0 4h-2"></path><path d="M7 5H5a2 2 0 0 0 0 4h2"></path></svg>
+            </button>
+            <button
+              onClick={openProjectorWindow}
+              className="w-10 h-10 rounded-[11px] bg-white/[0.07] border border-white/[0.12] flex items-center justify-center hover:scale-110 hover:bg-white/[0.12] active:scale-95 transition-all text-white/90"
+              title="Open Projector Window"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="1" y="4" width="22" height="13" rx="2"></rect><rect x="9" y="19" width="6" height="2" rx="1"></rect></svg>
             </button>
           </div>
         </div>

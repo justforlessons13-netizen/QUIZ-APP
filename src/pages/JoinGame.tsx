@@ -207,12 +207,18 @@ export default function JoinGame() {
     return (
       <div className="min-h-screen relative flex flex-col text-foreground">
         <DynamicBackground phase="team-setup" />
-        <header className="flex items-center justify-between p-4 border-b border-border/20 bg-black/40 backdrop-blur-md relative z-10">
+        <header
+          className="flex items-center justify-between p-4 border-b backdrop-blur-md relative z-10"
+          style={{ borderColor: alpha(theme.color1, 0.2), background: 'rgba(0,0,0,0.4)' }}
+        >
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 flex items-center justify-center bg-card rounded-md border border-border/50">
+            <div
+              className="w-8 h-8 flex items-center justify-center rounded-md"
+              style={{ background: alpha(theme.color1, 0.12), border: `1px solid ${alpha(theme.color1, 0.3)}` }}
+            >
               <Emoji3D emoji={joined.emoji || '🎮'} className="w-6 h-6" />
             </div>
-            <span className="text-sm text-white font-bungee tracking-wide uppercase truncate max-w-[140px]">
+            <span className="text-sm font-bungee tracking-wide uppercase truncate max-w-[140px]" style={{ color: theme.onColor1 === '#fff' ? '#fff' : theme.color1 }}>
               {joined.teamName}
             </span>
           </div>

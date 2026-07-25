@@ -261,6 +261,16 @@ export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }
                     }}
                   />
                 </div>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-primary uppercase">Show Standings After This Round</Label>
+                  <Switch
+                    checked={draft.standingsAfterRound?.[r] !== false}
+                    onCheckedChange={checked => {
+                      const newStandings = { ...draft.standingsAfterRound, [r]: checked };
+                      updateMeta({ standingsAfterRound: newStandings });
+                    }}
+                  />
+                </div>
               </div>
 
               {roundQs.map((q, qIdx) => (

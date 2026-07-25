@@ -154,4 +154,37 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  .waiting-glow {
+    animation: glowPulse 1.6s ease-in-out infinite;
+  }
+  .wdot {
+    animation: dotFade 1.4s ease-in-out infinite;
+  }
+  .wdot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+  .wdot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 8px 24px rgba(0, 0, 0, .3), 0 0 0px var(--glow-color); }
+  50% { box-shadow: 0 8px 24px rgba(0, 0, 0, .3), 0 0 26px var(--glow-color); }
+}
+
+@keyframes dotFade {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 1; }
+}
+
+@keyframes congratsShimmer {
+  0% { background-position: 200% 50%; }
+  100% { background-position: -200% 50%; }
+}
+
+.congrats-text {
+  background-size: 250% 100%;
+  animation: congratsShimmer 5.5s linear infinite;
 }

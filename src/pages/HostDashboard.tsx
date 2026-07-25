@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Plus, Lock } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQuestionPacks } from '@/hooks/useQuestionPacks';
 import { QuestionPack, GameSession, createEmptyPack } from '@/types/host';
@@ -124,6 +123,7 @@ export default function HostDashboard() {
   };
 
   return (
+    <Tabs defaultValue="packs" className="w-full">
     <div className="min-h-screen flex flex-col" style={{ background: 'oklch(96% 0.012 195)' }}>
       {/* Header */}
       <header
@@ -154,11 +154,36 @@ export default function HostDashboard() {
             </>
           )}
         </div>
+        {view === 'list' && (
+          <TabsList
+            className="inline-flex gap-1.5 p-1 rounded-[10px]"
+            style={{ background: 'oklch(94% 0.01 195)' }}
+          >
+            <TabsTrigger
+              value="packs"
+              className="rounded-lg text-[13px] font-semibold px-[18px] py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+              style={{ color: 'oklch(30% 0.02 195)' }}
+            >
+              Packs
+            </TabsTrigger>
+            <TabsTrigger
+              value="sessions"
+              className="rounded-lg text-[13px] font-semibold px-[18px] py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+              style={{ color: 'oklch(30% 0.02 195)' }}
+            >
+              Sessions
+            </TabsTrigger>
+          </TabsList>
+        )}
         <div className="flex items-center gap-2">
           {view === 'list' && user && (
-            <Button size="sm" onClick={handleCreateNew} style={{ background: theme.color1, color: theme.onColor1 }}>
-              <Plus className="w-4 h-4 mr-1" /> New Pack
-            </Button>
+            <button
+              onClick={handleCreateNew}
+              className="font-bungee uppercase text-xs px-5 py-2.5 rounded-md flex items-center transition-[filter] hover:brightness-110 active:scale-95"
+              style={{ background: theme.color1, color: theme.onColor1, border: 'none' }}
+            >
+              <Plus className="w-4 h-4 mr-1.5" /> New Pack
+            </button>
           )}
           {user ? (
             <div className="flex items-center gap-3">
@@ -203,29 +228,6 @@ export default function HostDashboard() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <Tabs defaultValue="packs" className="w-full">
-              <div className="flex justify-center mb-8">
-                <TabsList
-                  className="inline-flex gap-1.5 p-1 rounded-[10px]"
-                  style={{ background: 'oklch(94% 0.01 195)' }}
-                >
-                  <TabsTrigger
-                    value="packs"
-                    className="rounded-lg text-[13px] font-semibold px-4.5 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-                    style={{ color: 'oklch(30% 0.02 195)' }}
-                  >
-                    Packs
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="sessions"
-                    className="rounded-lg text-[13px] font-semibold px-4.5 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-                    style={{ color: 'oklch(30% 0.02 195)' }}
-                  >
-                    Sessions
-                  </TabsTrigger>
-                </TabsList>
-              </div>
-
               <TabsContent value="packs" className="mt-0">
                 <QuestionPackList
                   packs={packs}
@@ -263,7 +265,6 @@ export default function HostDashboard() {
                   />
                 )}
               </TabsContent>
-            </Tabs>
           </motion.div>
         )}
       </main>
@@ -322,5 +323,6 @@ export default function HostDashboard() {
         </div>
       )}
     </div>
+    </Tabs>
   );
 }

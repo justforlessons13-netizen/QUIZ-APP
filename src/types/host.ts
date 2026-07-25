@@ -11,6 +11,9 @@ export interface QuestionPack {
   roundNames?: Record<number, string>;
   roundRules?: Record<number, string>;
   lotteryAfterRound?: Record<number, boolean>;
+  // Defaults to shown (true) when a round has no explicit entry, so existing packs keep
+  // today's "leaderboard after every round" behavior unless a host opts a round out.
+  standingsAfterRound?: Record<number, boolean>;
   createdAt: string;
   updatedAt: string;
   questions: Question[];

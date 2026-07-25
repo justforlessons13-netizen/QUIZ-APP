@@ -47,6 +47,20 @@ function advanceToNextQuestion(prev: LiveGameState): LiveGameState {
   };
 }
 
+// currentQuestionIndex is pinned at the round's FIRST question throughout reveal/leaderboard/lottery
+// (see finalizeRoundGrading) — realign to the round's LAST question before delegating to
+// advanceToNextQuestion, whose +1 math expects the last-played question index.
+function skipToNextRound(prev: LiveGameState): LiveGameState {
+  const currentQ = prev.questions[prev.currentQuestionIndex];
+  const roundIndices = prev.questions
+    .map((q, i) => (q.round === currentQ.round ? i : -1))
+    .filter((i) => i !== -1);
+  const lastIndexInRound = roundIndices[roundIndices.length - 1];
+
+  if (lastIndexInRound + 1 >= prev.questions.length) return { ...prev, phase: 'finished' };
+  return advanceToNextQuestion({ ...prev, currentQuestionIndex: lastIndexInRound });
+}
+
 // Deep comparison helper — prevents writing identical arrays/objects every render
 function getChanges(prev: LiveGameState, next: LiveGameState): Partial<LiveGameState> | null {
   const changes: Partial<LiveGameState> = {};
@@ -72,7 +86,8 @@ export function useLiveGame(
   packId: string,
   packName: string,
   questions: Question[],
-  lotteryAfterRound?: Record<number, boolean>
+  lotteryAfterRound?: Record<number, boolean>,
+  standingsAfterRound?: Record<number, boolean>
 ) {
   const [game, setGame] = useState<LiveGameState>(() => createLiveGame(sessionId, packId, packName, questions));
   const [loading, setLoading] = useState(true);
@@ -416,9 +431,9 @@ export function useLiveGame(
 
   // Called once per round, from the last page of the Reveal stepper — Reveal no longer advances
   // question-by-question (that's the local/synced roundStepIndex now), so this only ever needs to
-  // decide what comes after the whole round: final standings, a lottery draw, or the interim
-  // leaderboard. Every round gets one of the latter two — there's no "skip straight to next round"
-  // path anymore, matching the design's "leaderboard after every non-lottery round" intent.
+  // decide what comes after the whole round: final standings, a lottery draw, the interim
+  // leaderboard, or — if the host turned both off for this round in the pack editor — straight
+  // on to the next round's rules.
   const advanceFromReveal = useCallback(() => {
     setGame((prev) => {
       const currentQ = prev.questions[prev.currentQuestionIndex];
@@ -434,9 +449,15 @@ export function useLiveGame(
         return { ...prev, phase: 'lottery', lotteryState: undefined };
       }
 
-      return { ...prev, phase: 'leaderboard' };
+      // No explicit entry defaults to shown, matching pre-existing packs' always-on behavior.
+      const showStandings = standingsAfterRound?.[currentQ.round] !== false;
+      if (showStandings) {
+        return { ...prev, phase: 'leaderboard' };
+      }
+
+      return skipToNextRound(prev);
     });
-  }, []);
+  }, [lotteryAfterRound, standingsAfterRound]);
 
   const adjustTeamScore = useCallback(
     async (teamId: string, pointDelta: number, specificRoundIndex?: number) => {
@@ -479,19 +500,7 @@ export function useLiveGame(
   );
 
   const advanceFromLeaderboard = useCallback(() => {
-    setGame((prev) => {
-      // currentQuestionIndex is pinned at the round's FIRST question throughout reveal/leaderboard
-      // (see finalizeRoundGrading) — realign to the round's LAST question before delegating to
-      // advanceToNextQuestion, whose +1 math expects the last-played question index.
-      const currentQ = prev.questions[prev.currentQuestionIndex];
-      const roundIndices = prev.questions
-        .map((q, i) => (q.round === currentQ.round ? i : -1))
-        .filter((i) => i !== -1);
-      const lastIndexInRound = roundIndices[roundIndices.length - 1];
-
-      if (lastIndexInRound + 1 >= prev.questions.length) return { ...prev, phase: 'finished' };
-      return advanceToNextQuestion({ ...prev, currentQuestionIndex: lastIndexInRound });
-    });
+    setGame((prev) => skipToNextRound(prev));
   }, []);
 
   const resetGame = useCallback(() => {

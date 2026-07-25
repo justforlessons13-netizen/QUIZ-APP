@@ -17,8 +17,8 @@ const scopedCSS = `
 .rr-arrow {
   width: 44px; height: 44px; min-width: 44px;
   border-radius: 50%;
-  border: 1px solid ${alpha(theme.color1, 0.3)};
-  background: ${alpha(theme.color1, 0.15)};
+  border: 1px solid ${alpha(theme.color1, 0.188)};
+  background: ${alpha(theme.color1, 0.125)};
   color: ${theme.color1};
   font-size: 19px;
   display: flex; align-items: center; justify-content: center;
@@ -42,17 +42,8 @@ const scopedCSS = `
   transition: all 0.3s ease;
 }
 .rr-dot:hover { transform: scale(1.3); }
-.rr-card-inner {
-  background: #13131f;
-  border: 1px solid ${alpha(theme.color1, 0.25)};
-  border-radius: 16px;
-  padding: 48px 36px;
-  position: relative;
-  overflow: hidden;
-}
 @media (max-width: 640px) {
   .rr-arrow { width: 38px; height: 38px; min-width: 38px; font-size: 17px; }
-  .rr-card-inner { padding: 32px 22px; }
 }
 `;
 
@@ -100,33 +91,37 @@ export function RoundRulesDisplay({ round, totalRounds, roundName, rules, projec
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="flex flex-col items-center justify-center w-full relative z-10 px-4"
-      style={{ maxWidth: 720, margin: '0 auto' }}
+      className="w-full flex-1 flex flex-col items-center relative z-10 px-10"
     >
       <style>{scopedCSS}</style>
 
+      <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0">
+
       {/* ── Header ── */}
       <div
-        className="inline-block font-bungee text-[13px] uppercase tracking-widest px-5 py-1.5 rounded-full mb-3"
-        style={{ background: alpha(theme.color1, 0.15), border: `1px solid ${alpha(theme.color1, 0.35)}`, color: theme.color1 }}
+        className="inline-block font-bungee uppercase"
+        style={{
+          fontSize: 13, letterSpacing: '0.15em', padding: '6px 18px', borderRadius: 20, marginBottom: 20,
+          background: alpha(theme.color1, 0.133), border: `1px solid ${alpha(theme.color1, 0.271)}`, color: theme.color1,
+        }}
       >
         Round {round} of {totalRounds}
       </div>
       <h1
-        className="text-3xl md:text-4xl font-bungee text-white tracking-wide uppercase text-center mb-8"
-        style={{ textShadow: `0 0 30px ${alpha(theme.color1, 0.5)}` }}
+        className="font-bungee text-white uppercase text-center"
+        style={{ fontSize: 38, marginBottom: 40 }}
       >
         {roundName && roundName.trim() ? roundName : `Round ${round}`}
       </h1>
 
-      {/* ── Carousel ── */}
-      <div className="flex items-center w-full" style={{ gap: 16 }}>
+      {/* ── Round info carousel — label + value, no card ── */}
+      <div className="flex items-center w-full" style={{ gap: 24, maxWidth: 480 }}>
         {!projectorMode && (
           <button className="rr-arrow" onClick={handlePrev} disabled={isFirst} aria-label="Previous rule">‹</button>
         )}
 
         <div
-          style={{ flex: 1, overflow: 'hidden', borderRadius: 16, minWidth: 0 }}
+          style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
         >
@@ -138,24 +133,12 @@ export function RoundRulesDisplay({ round, totalRounds, roundName, rules, projec
             }}
           >
             {displayRules.map((rule, i) => (
-              <div key={i} style={{ flex: '0 0 100%', minWidth: 0, width: '100%' }}>
-                <div className="rr-card-inner">
-                  <div style={{
-                    position: 'absolute', top: 0, left: 0, right: 0, height: 3,
-                    background: `linear-gradient(90deg, transparent, ${theme.color1}, transparent)`,
-                    opacity: 0.5,
-                  }} />
-                  <div className="flex flex-col items-center text-center" style={{ gap: 18 }}>
-                    <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 2, color: '#8a8aa3', fontWeight: 600 }}>
-                      Rule {i + 1} of {total}
-                    </div>
-                    <div
-                      className="uppercase tracking-widest"
-                      style={{ fontSize: 'clamp(18px, 3vw, 28px)', fontWeight: 600, color: '#d9d9d9', lineHeight: 1.4 }}
-                    >
-                      {rule}
-                    </div>
-                  </div>
+              <div key={i} style={{ flex: '0 0 100%', minWidth: 0, width: '100%', textAlign: 'center' }}>
+                <div style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'oklch(60% 0.01 195)', marginBottom: 20 }}>
+                  Rule {i + 1} of {total}
+                </div>
+                <div style={{ fontSize: 26, fontWeight: 600, color: 'oklch(92% 0.005 195)' }}>
+                  {rule}
                 </div>
               </div>
             ))}
@@ -169,7 +152,7 @@ export function RoundRulesDisplay({ round, totalRounds, roundName, rules, projec
 
       {/* ── Dots ── */}
       {total > 1 && (
-        <div className="flex justify-center" style={{ gap: 10, marginTop: 24 }}>
+        <div className="flex justify-center" style={{ gap: 10, marginTop: 28 }}>
           {displayRules.map((_, i) => (
             <button
               key={i}
@@ -186,17 +169,22 @@ export function RoundRulesDisplay({ round, totalRounds, roundName, rules, projec
         </div>
       )}
 
+      </div>
+
+      {/* ── Start Round button row (separate, bottom-padded) ── */}
       {!projectorMode && (
-        <motion.button
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          onClick={() => onStartRound()}
-          className="font-bungee text-[14px] uppercase tracking-widest px-11 py-4 rounded-[10px] mt-8"
-          style={{ background: 'transparent', border: `2px solid ${theme.color1}`, color: theme.color1, boxShadow: `0 0 20px ${alpha(theme.color1, 0.3)}` }}
-        >
-          ▶ Start Round
-        </motion.button>
+        <div className="w-full flex justify-center items-center" style={{ padding: '14px 0 20px' }}>
+          <motion.button
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            onClick={() => onStartRound()}
+            className="font-bungee text-[14px] uppercase tracking-widest px-11 py-4 rounded-[10px]"
+            style={{ background: 'transparent', border: `2px solid ${theme.color1}`, color: theme.color1, boxShadow: `0 0 20px ${alpha(theme.color1, 0.3)}` }}
+          >
+            ▶ Start Round
+          </motion.button>
+        </div>
       )}
     </motion.div>
   );

@@ -24,12 +24,12 @@ export interface GameRulesDisplayProps {
 /* ── scoped styles for pseudo-class / responsive rules that can't be inline ── */
 const scopedCSS = `
 .gr-arrow {
-  width: 48px; height: 48px; min-width: 48px;
+  width: 44px; height: 44px; min-width: 44px;
   border-radius: 50%;
-  border: 1px solid ${alpha(theme.color1, 0.3)};
-  background: ${alpha(theme.color1, 0.15)};
+  border: 1px solid ${alpha(theme.color1, 0.188)};
+  background: ${alpha(theme.color1, 0.125)};
   color: ${theme.color1};
-  font-size: 20px;
+  font-size: 19px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; padding: 0;
   cursor: pointer;
@@ -51,18 +51,9 @@ const scopedCSS = `
   transition: all 0.3s ease;
 }
 .gr-dot:hover { transform: scale(1.3); }
-.gr-card-inner {
-  background: #13131f;
-  border: 1px solid ${alpha(theme.color1, 0.25)};
-  border-radius: 16px;
-  padding: 40px 32px;
-  position: relative;
-  overflow: hidden;
-}
 @media (max-width: 640px) {
   .gr-arrow { width: 40px; height: 40px; min-width: 40px; font-size: 18px; }
   .gr-carousel-area { gap: 8px !important; }
-  .gr-card-inner { padding: 28px 20px; }
 }
 `;
 
@@ -113,31 +104,45 @@ export function GameRulesDisplay({ projectorMode, onContinue, currentRuleIndex =
     touchStartX.current = null;
   };
 
+  const carouselMaxWidth = projectorMode ? 760 : 640;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="flex flex-col items-center justify-center w-full relative z-10 px-4"
-      style={{ maxWidth: 720, margin: '0 auto' }}
+      className="w-full flex-1 flex flex-col items-center relative z-10 px-10"
     >
       <style>{scopedCSS}</style>
 
+      <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0">
+
       {/* ── Title ── */}
-      <div className="text-center mb-8">
+      <div className="text-center" style={{ marginBottom: 32 }}>
         <h1
-          className="text-4xl md:text-5xl font-bungee text-white tracking-wide uppercase"
-          style={{ textShadow: `0 0 30px ${alpha(theme.color1, 0.6)}` }}
+          className="font-bungee text-white uppercase"
+          style={{ fontSize: projectorMode ? 48 : 38 }}
         >
           Game Rules
         </h1>
-        <p className="text-sm md:text-base font-bungee text-muted-foreground uppercase tracking-widest mt-2">
+        <p
+          className="font-bungee uppercase"
+          style={{
+            fontSize: projectorMode ? 14 : 12,
+            color: 'oklch(70% 0.01 195)',
+            letterSpacing: '0.15em',
+            marginTop: projectorMode ? 10 : 8,
+          }}
+        >
           Know before you play
         </p>
       </div>
 
       {/* ── Carousel Area: arrows + viewport ── */}
-      <div className="gr-carousel-area flex items-center w-full" style={{ gap: 16 }}>
+      <div
+        className="gr-carousel-area flex items-center w-full"
+        style={{ gap: 16, maxWidth: carouselMaxWidth }}
+      >
 
         {/* Left Arrow */}
         {!projectorMode && (
@@ -146,7 +151,7 @@ export function GameRulesDisplay({ projectorMode, onContinue, currentRuleIndex =
 
         {/* Card Viewport */}
         <div
-          style={{ flex: 1, overflow: 'hidden', borderRadius: 16, minWidth: 0 }}
+          style={{ flex: 1, overflow: 'hidden', borderRadius: projectorMode ? 20 : 16, minWidth: 0 }}
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
         >
@@ -159,36 +164,45 @@ export function GameRulesDisplay({ projectorMode, onContinue, currentRuleIndex =
           >
             {GAME_RULES.map((rule, idx) => (
               <div key={idx} style={{ flex: '0 0 100%', minWidth: 0, width: '100%' }}>
-                <div className="gr-card-inner">
+                <div
+                  style={{
+                    background: '#13131f',
+                    border: `1px solid ${alpha(theme.color1, 0.145)}`,
+                    borderRadius: projectorMode ? 20 : 16,
+                    padding: projectorMode ? '56px 40px' : '40px 32px',
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                >
                   {/* Top accent line */}
                   <div style={{
-                    position: 'absolute', top: 0, left: 0, right: 0, height: 3,
+                    position: 'absolute', top: 0, left: 0, right: 0, height: projectorMode ? 4 : 3,
                     background: `linear-gradient(90deg, transparent, ${theme.color1}, transparent)`,
                     opacity: 0.5,
                   }} />
 
                   {/* Vertical centered content */}
-                  <div className="flex flex-col items-center text-center" style={{ gap: 20 }}>
+                  <div className="flex flex-col items-center text-center" style={{ gap: projectorMode ? 26 : 20 }}>
                     {/* Rule label */}
                     <div style={{
-                      fontSize: 13, textTransform: 'uppercase', letterSpacing: 2,
-                      color: '#8a8aa3', fontWeight: 600,
+                      fontSize: projectorMode ? 16 : 13, textTransform: 'uppercase', letterSpacing: 2,
+                      color: 'oklch(60% 0.01 195)', fontWeight: 600,
                     }}>
                       Rule {idx + 1} of {total} — {rule.title}
                     </div>
 
                     {/* Icon */}
                     <div style={{
-                      fontSize: 48, lineHeight: 1,
-                      filter: `drop-shadow(0 0 12px ${alpha(theme.color1, 0.4)})`,
+                      fontSize: projectorMode ? 68 : 48, lineHeight: 1,
+                      filter: `drop-shadow(0 0 ${projectorMode ? 16 : 12}px ${alpha(theme.color1, 0.4)})`,
                     }}>
                       {rule.emoji}
                     </div>
 
                     {/* Rule text */}
                     <div style={{
-                      fontSize: 'clamp(18px, 3vw, 26px)',
-                      fontWeight: 600, color: '#d9d9d9', lineHeight: 1.4,
+                      fontSize: projectorMode ? 32 : 24,
+                      fontWeight: 600, color: 'oklch(88% 0.005 195)', lineHeight: 1.4,
                     }}>
                       {rule.description}
                     </div>
@@ -206,7 +220,7 @@ export function GameRulesDisplay({ projectorMode, onContinue, currentRuleIndex =
       </div>
 
       {/* ── Progress Dots ── */}
-      <div className="flex justify-center" style={{ gap: 10, marginTop: 24 }}>
+      <div className="flex justify-center" style={{ gap: 10, marginTop: projectorMode ? 32 : 24 }}>
         {GAME_RULES.map((_, idx) => {
           const isActive = idx === currentRuleIndex;
           const isVisited = visited.has(idx);
@@ -217,7 +231,7 @@ export function GameRulesDisplay({ projectorMode, onContinue, currentRuleIndex =
               onClick={() => goTo(idx)}
               aria-label={`Go to rule ${idx + 1}`}
               style={{
-                background: isActive ? theme.color1 : isVisited ? '#8a8aa3' : alpha(theme.color1, 0.15),
+                background: isActive ? theme.color1 : isVisited ? 'oklch(60% 0.01 195)' : alpha(theme.color1, 0.15),
                 transform: isActive ? 'scale(1.2)' : 'scale(1)',
                 boxShadow: isActive ? `0 0 10px ${alpha(theme.color1, 0.35)}` : 'none',
               }}
@@ -228,59 +242,39 @@ export function GameRulesDisplay({ projectorMode, onContinue, currentRuleIndex =
 
       {/* ── Viewed Hint ── */}
       {!projectorMode && !allVisited && (
-        <div style={{ fontSize: 13, color: '#8a8aa3', opacity: 0.7, textAlign: 'center', marginTop: 16 }}>
+        <div style={{ fontSize: 13, color: 'oklch(60% 0.01 195)', opacity: 0.7, textAlign: 'center', marginTop: 16 }}>
           Browse all rules to unlock the start button
         </div>
       )}
 
-      {/* ── CTA Button (unlocks when all visited) ── */}
-      {!projectorMode && (
-        <AnimatePresence>
-          {allVisited && (
-            <motion.button
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              onClick={onContinue}
-              className="flex items-center gap-2 px-6 py-2 rounded-xl bg-transparent border-2 font-bungee text-[15px] uppercase tracking-widest animate-borderPulse"
-              style={{ marginTop: 20, borderColor: theme.color1, color: theme.color1, boxShadow: `0 0 20px ${alpha(theme.color1, 0.2)}` }}
-            >
-              <Play className="w-4 h-4 fill-current" /> Let's Go!
-            </motion.button>
-          )}
-        </AnimatePresence>
-      )}
+      </div>
 
-      {/* ── Projector: Waiting for host ── */}
-      {projectorMode && (
-        <div className="mt-8 flex flex-col items-center gap-3">
-          <div className="flex items-center justify-center gap-3">
-            <div className="flex gap-1">
-              {[0, 1, 2].map((i) => (
-                <motion.div
-                  key={`l-${i}`}
-                  animate={{ opacity: [0.3, 1, 0.3] }}
-                  transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
-                  className="w-1.5 h-1.5 rounded-full"
-                  style={{ background: alpha(theme.color1, 0.8) }}
-                />
-              ))}
-            </div>
-            <span className="text-muted-foreground font-bungee text-[10px] uppercase tracking-[0.2em] text-center">
-              Waiting for host
-            </span>
-            <div className="flex gap-1">
-              {[0, 1, 2].map((i) => (
-                <motion.div
-                  key={`r-${i}`}
-                  animate={{ opacity: [0.3, 1, 0.3] }}
-                  transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
-                  className="w-1.5 h-1.5 rounded-full"
-                  style={{ background: alpha(theme.color1, 0.8) }}
-                />
-              ))}
-            </div>
-          </div>
+      {/* ── CTA Button row (separate, bottom-padded — matches Lobby's Start Game row) ── */}
+      {!projectorMode && (
+        <div className="w-full flex justify-center items-center" style={{ padding: '14px 0 20px' }}>
+          <AnimatePresence>
+            {allVisited && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                onClick={onContinue}
+                className="flex items-center justify-center gap-3 bg-transparent border-2 font-bungee uppercase"
+                style={{
+                  minWidth: 260,
+                  padding: '15px 46px',
+                  borderRadius: 10,
+                  fontSize: 14,
+                  letterSpacing: '0.15em',
+                  borderColor: theme.color1,
+                  color: theme.color1,
+                  boxShadow: `0 0 20px ${alpha(theme.color1, 0.188)}`,
+                }}
+              >
+                <Play className="w-4 h-4 fill-current" /> Let's Go!
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
       )}
     </motion.div>

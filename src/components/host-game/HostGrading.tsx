@@ -35,10 +35,10 @@ export function HostGrading({ teams, questions, round, onSetCorrectness, onFinis
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="flex flex-col items-center gap-5 w-full max-w-lg mx-auto px-4"
+      className="w-full flex-1 flex flex-col items-center px-4"
     >
-      {/* Header */}
-      <div className="text-center">
+      {/* Header — pinned top, not part of the centered content block */}
+      <div className="text-center flex-none" style={{ marginBottom: 8 }}>
         <div
           className="inline-block font-bungee text-[11px] uppercase tracking-widest px-4 py-1.5 rounded-full mb-2"
           style={{ background: alpha(theme.color1, 0.15), border: `1px solid ${alpha(theme.color1, 0.35)}`, color: theme.color1 }}
@@ -50,6 +50,7 @@ export function HostGrading({ teams, questions, round, onSetCorrectness, onFinis
         </p>
       </div>
 
+      <div className="flex-1 flex flex-col items-center gap-5 w-full max-w-lg mx-auto min-h-0" style={{ paddingTop: 20 }}>
       <div className="w-full space-y-2">
         <div className="text-base font-semibold text-center text-foreground">{current.question.text}</div>
         <div
@@ -134,15 +135,19 @@ export function HostGrading({ teams, questions, round, onSetCorrectness, onFinis
         </div>
       )}
 
+      </div>
+
       {isLastPage && (
-        <button
-          onClick={onFinishRound}
-          disabled={!allGraded}
-          className="font-bungee uppercase tracking-widest rounded-[10px] text-[14px] px-11 py-4 disabled:opacity-40 transition-opacity"
-          style={{ background: 'transparent', border: `2px solid ${theme.color1}`, color: theme.color1, boxShadow: `0 0 20px ${alpha(theme.color1, 0.3)}` }}
-        >
-          Finish Grading ▶
-        </button>
+        <div className="w-full flex justify-center" style={{ padding: '14px 0 20px' }}>
+          <button
+            onClick={onFinishRound}
+            disabled={!allGraded}
+            className="font-bungee uppercase tracking-widest rounded-[10px] text-[14px] px-11 py-4 disabled:opacity-40 transition-opacity"
+            style={{ background: 'transparent', border: `2px solid ${theme.color1}`, color: theme.color1, boxShadow: `0 0 20px ${alpha(theme.color1, 0.3)}` }}
+          >
+            Finish Grading ▶
+          </button>
+        </div>
       )}
     </motion.div>
   );
