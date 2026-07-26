@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Check, X, SkipForward, Loader2, BookOpenText, Quote, EyeOff } from 'lucide-react';
+import { Check, X, SkipForward, Loader2 } from 'lucide-react';
 import { BeePlayer, BeeWord } from '@/types/bee';
-import { cn } from '@/lib/utils';
 
 interface BeeWordCycleProps {
   word: BeeWord;
@@ -14,6 +13,9 @@ interface BeeWordCycleProps {
   onSkip: () => void;
   onSubstituteWord: () => void;
 }
+
+const GOLD = 'oklch(80% 0.16 92)';
+const GOLD_DIM = 'oklch(70% 0.02 92)';
 
 export function BeeWordCycle({
   word, player, hintsUsed, onRequestHint, onCorrect, onIncorrect, onSkip, onSubstituteWord,
@@ -27,134 +29,172 @@ export function BeeWordCycle({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="w-full max-w-lg mx-auto flex flex-col items-center gap-6 py-10 px-4"
+      className="w-full max-w-[600px] mx-auto flex flex-col items-center gap-6 py-10 px-4 text-center"
     >
-      <div className="text-center">
-        <p className="text-muted-foreground text-xs uppercase tracking-[3px] font-sugo">Speller</p>
-        <h2 className="text-xl font-bungee text-primary uppercase tracking-wide">{player.name}</h2>
+      {/* Speller label */}
+      <div>
+        <p
+          className="font-bungee uppercase tracking-[.15em]"
+          style={{ fontSize: 12, color: GOLD_DIM }}
+        >
+          Speller
+        </p>
+        <h2
+          className="font-bungee uppercase"
+          style={{ fontSize: 22, color: GOLD }}
+        >
+          {player.name}
+        </h2>
       </div>
 
-      <div className="w-full p-6 rounded-2xl border border-border bg-card text-center space-y-3">
-        <div className="flex items-center justify-center gap-2">
-          <h1 className="text-4xl font-bungee text-white tracking-wide break-words">{word.word}</h1>
-          {word.partOfSpeech && (
-            <span className="text-xs italic text-muted-foreground self-end mb-2">{word.partOfSpeech}</span>
-          )}
-        </div>
+      {/* Word card — glassmorphism */}
+      <div
+        className="w-full flex flex-col items-center"
+        style={{
+          background: 'rgba(255,255,255,.06)',
+          backdropFilter: 'blur(14px)',
+          WebkitBackdropFilter: 'blur(14px)',
+          border: `1px solid ${GOLD}4d`, // ~30% alpha
+          borderRadius: 24,
+          padding: '44px 30px',
+          boxShadow: '0 20px 60px rgba(0,0,0,.35)',
+          gap: 20,
+        }}
+      >
+        {/* Word */}
+        <h1
+          className="font-bungee break-words"
+          style={{
+            fontSize: 56,
+            color: GOLD,
+            textTransform: 'lowercase',
+            textShadow: `0 0 30px ${GOLD}4d`,
+            lineHeight: 1.1,
+          }}
+        >
+          {word.word}
+        </h1>
 
-        <div className="grid grid-cols-2 gap-3 pt-1">
+        {/* Part of speech */}
+        {word.partOfSpeech && (
+          <p style={{ fontSize: 12, color: GOLD_DIM, fontStyle: 'italic' }}>
+            {word.partOfSpeech}
+          </p>
+        )}
+
+        {/* Hint buttons */}
+        <div className="flex gap-3 w-full justify-center flex-wrap">
           <button
             onClick={() => onRequestHint('definition')}
-            className={cn(
-              'group flex items-center justify-center gap-2 py-3 px-3 rounded-xl border font-bungee text-[11px] sm:text-xs uppercase tracking-wider transition-all duration-200',
-              definitionRevealed
-                ? 'bg-sky-500/25 border-sky-400/60 text-sky-200 hover:bg-sky-500/35 hover:-translate-y-0.5 active:translate-y-0 shadow-[0_0_20px_-8px_rgba(56,189,248,0.9)]'
-                : 'bg-sky-500/15 border-sky-400/40 text-sky-300 hover:bg-sky-500/25 hover:border-sky-400/60 hover:-translate-y-0.5 active:translate-y-0 shadow-[0_0_20px_-10px_rgba(56,189,248,0.8)]'
-            )}
+            className="font-bungee uppercase transition-[filter] hover:brightness-110 active:scale-95"
+            style={{
+              padding: '12px 22px',
+              borderRadius: 10,
+              background: definitionRevealed ? `${GOLD}22` : 'transparent',
+              border: `1.5px solid ${GOLD}66`,
+              color: '#fff',
+              fontSize: 11,
+              letterSpacing: '.04em',
+            }}
           >
-            <span
-              className={cn(
-                'flex items-center justify-center w-6 h-6 rounded-full shrink-0 transition-colors',
-                definitionRevealed ? 'bg-sky-400/30' : 'bg-sky-400/20 group-hover:bg-sky-400/30'
-              )}
-            >
-              {definitionRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <BookOpenText className="w-3.5 h-3.5" />}
-            </span>
             {definitionRevealed ? 'Hide definition' : 'Reveal definition'}
           </button>
 
           <button
             onClick={() => onRequestHint('sentence')}
             disabled={!word.exampleSentence}
-            className={cn(
-              'group flex items-center justify-center gap-2 py-3 px-3 rounded-xl border font-bungee text-[11px] sm:text-xs uppercase tracking-wider transition-all duration-200',
-              !word.exampleSentence
-                ? 'bg-white/5 border-white/10 text-muted-foreground/30 cursor-not-allowed'
-                : sentenceRevealed
-                ? 'bg-fuchsia-500/25 border-fuchsia-400/60 text-fuchsia-200 hover:bg-fuchsia-500/35 hover:-translate-y-0.5 active:translate-y-0 shadow-[0_0_20px_-8px_rgba(232,121,249,0.9)]'
-                : 'bg-fuchsia-500/15 border-fuchsia-400/40 text-fuchsia-300 hover:bg-fuchsia-500/25 hover:border-fuchsia-400/60 hover:-translate-y-0.5 active:translate-y-0 shadow-[0_0_20px_-10px_rgba(232,121,249,0.8)]'
-            )}
+            className="font-bungee uppercase transition-[filter] hover:brightness-110 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{
+              padding: '12px 22px',
+              borderRadius: 10,
+              background: sentenceRevealed ? `${GOLD}22` : 'transparent',
+              border: `1.5px solid ${GOLD}66`,
+              color: '#fff',
+              fontSize: 11,
+              letterSpacing: '.04em',
+            }}
           >
-            <span
-              className={cn(
-                'flex items-center justify-center w-6 h-6 rounded-full shrink-0 transition-colors',
-                !word.exampleSentence
-                  ? 'bg-white/5'
-                  : sentenceRevealed
-                  ? 'bg-fuchsia-400/30'
-                  : 'bg-fuchsia-400/20 group-hover:bg-fuchsia-400/30'
-              )}
-            >
-              {sentenceRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Quote className="w-3.5 h-3.5" />}
-            </span>
             {sentenceRevealed ? 'Hide sentence' : 'Use in a sentence'}
           </button>
         </div>
 
-        {definitionRevealed && (
-          <motion.p
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-sm text-muted-foreground pt-1"
-          >
-            {word.definition}
-          </motion.p>
-        )}
-
-        {sentenceRevealed && word.exampleSentence && (
-          <motion.p
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-xs text-foreground/70 italic pt-2 border-t border-border/60 mt-3"
-          >
-            "{word.exampleSentence}"
-          </motion.p>
-        )}
+        {/* Revealed text area */}
+        <div className="min-h-[56px] flex flex-col items-center justify-center gap-2 w-full">
+          {definitionRevealed && (
+            <motion.p
+              key="def"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{ fontSize: 16, color: 'oklch(85% 0.01 195)', maxWidth: 460 }}
+            >
+              {word.definition}
+            </motion.p>
+          )}
+          {sentenceRevealed && word.exampleSentence && (
+            <motion.p
+              key="sent"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{ fontSize: 16, color: 'oklch(85% 0.01 195)', maxWidth: 460, fontStyle: 'italic' }}
+            >
+              "{word.exampleSentence}"
+            </motion.p>
+          )}
+        </div>
       </div>
 
-      <div className="flex items-center gap-2 text-muted-foreground text-xs uppercase tracking-widest font-sugo">
-        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+      {/* Waiting status */}
+      <div
+        className="flex items-center gap-2 uppercase tracking-[.1em]"
+        style={{ fontSize: 12, color: GOLD_DIM }}
+      >
+        <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
         Waiting for {player.name} to answer on the stage device…
       </div>
 
+      {/* Manual grading */}
       {manualGrading ? (
-        <div className="w-full grid grid-cols-2 gap-3">
+        <div className="w-full grid grid-cols-2 gap-3 max-w-[420px]">
           <button
             onClick={onCorrect}
-            className="flex items-center justify-center gap-2 py-4 rounded-xl bg-success/15 border border-success/30 text-success font-bungee text-sm uppercase tracking-wider hover:bg-success/25 transition-colors"
+            className="flex items-center justify-center gap-2 py-4 rounded-xl font-bungee text-sm uppercase tracking-wider transition-[filter] hover:brightness-110"
+            style={{ background: 'oklch(55% 0.18 145 / .2)', border: '1px solid oklch(55% 0.18 145 / .4)', color: 'oklch(70% 0.15 145)' }}
           >
-            <Check className="w-5 h-5" />
-            Correct
+            <Check className="w-5 h-5" /> Correct
           </button>
           <button
             onClick={onIncorrect}
-            className="flex items-center justify-center gap-2 py-4 rounded-xl bg-destructive/15 border border-destructive/30 text-destructive font-bungee text-sm uppercase tracking-wider hover:bg-destructive/25 transition-colors"
+            className="flex items-center justify-center gap-2 py-4 rounded-xl font-bungee text-sm uppercase tracking-wider transition-[filter] hover:brightness-110"
+            style={{ background: 'oklch(55% 0.2 25 / .2)', border: '1px solid oklch(55% 0.2 25 / .4)', color: 'oklch(70% 0.2 25)' }}
           >
-            <X className="w-5 h-5" />
-            Incorrect
+            <X className="w-5 h-5" /> Incorrect
           </button>
         </div>
       ) : (
         <button
           onClick={() => setManualGrading(true)}
-          className="text-xs text-muted-foreground/60 hover:text-muted-foreground underline underline-offset-2 transition-colors"
+          className="underline underline-offset-2 transition-opacity hover:opacity-80"
+          style={{ fontSize: 12, color: GOLD_DIM }}
         >
           Device unavailable? Grade manually
         </button>
       )}
 
+      {/* Skip / Substitute */}
       <div className="flex items-center gap-4">
         <button
           onClick={onSkip}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-1.5 transition-opacity hover:opacity-80"
+          style={{ fontSize: 12, color: GOLD_DIM }}
         >
           <SkipForward className="w-3.5 h-3.5" />
           Skip speller
         </button>
-        <span className="text-muted-foreground/30">·</span>
+        <span style={{ color: `${GOLD_DIM}66` }}>·</span>
         <button
           onClick={onSubstituteWord}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="transition-opacity hover:opacity-80"
+          style={{ fontSize: 12, color: GOLD_DIM }}
         >
           Wrong word? Substitute
         </button>
