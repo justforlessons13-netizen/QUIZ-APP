@@ -54,27 +54,59 @@ export function BeeStandings({ players, onPlayAgain, onDashboard }: BeeStandings
   }, [step]);
 
   const restList = (compact: boolean) => (
-    <div className="w-full space-y-2">
-      {pageRows.map((player, i) => (
-        <div
-          key={player.id}
-          className={`flex items-center gap-3 rounded-xl border border-border bg-card ${compact ? 'px-4 py-2.5' : 'px-4 py-3'}`}
-        >
-          <span className="text-muted-foreground font-bungee text-xs w-6 text-center">{page * PAGE_SIZE + i + 4}</span>
-          {!compact && <Avatar player={player} size={28} />}
-          <span className={`flex-1 font-sugo uppercase tracking-wider truncate ${compact ? 'text-xs' : 'text-sm'}`}>{player.name}</span>
-          <span className={`text-muted-foreground uppercase tracking-wider ${compact ? 'text-[11px]' : 'text-xs'}`}>{timeLabel(player)}</span>
-        </div>
-      ))}
+    <div className="w-full flex flex-col gap-2">
+      {pageRows.map((player, i) => {
+        const isElim = player.status === 'eliminated';
+        return (
+          <div
+            key={player.id}
+            className="flex items-center gap-2.5 rounded-[10px] border"
+            style={{
+              padding: '10px 14px',
+              background: 'oklch(14% 0.02 70 / 0.6)',
+              borderColor: 'oklch(80% 0.16 92 / 0.12)',
+            }}
+          >
+            <span
+              className="font-bungee shrink-0"
+              style={{ fontSize: 12, color: 'oklch(70% 0.02 92)', width: 20 }}
+            >
+              {page * PAGE_SIZE + i + 4}
+            </span>
+            <span className="flex-1 font-semibold text-[13px] text-white truncate">
+              {player.name}
+            </span>
+            <span
+              className="text-[11px] uppercase tracking-wide shrink-0"
+              style={{ color: isElim ? 'oklch(65% 0.2 25)' : 'oklch(80% 0.16 92)' }}
+            >
+              {isElim ? 'Eliminated' : `${(player.totalTimeMs / 1000).toFixed(1)}s`}
+            </span>
+          </div>
+        );
+      })}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-4 pt-1">
-          <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="w-7 h-7 rounded-full border border-primary/30 text-primary disabled:opacity-30">‹</button>
-          <span className="text-xs text-muted-foreground uppercase">Page {page + 1} / {totalPages}</span>
-          <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="w-7 h-7 rounded-full border border-primary/30 text-primary disabled:opacity-30">›</button>
+        <div className="flex items-center justify-center gap-3.5 pt-1">
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="w-7 h-7 rounded-full border flex items-center justify-center disabled:opacity-30 transition-opacity"
+            style={{ borderColor: 'oklch(80% 0.16 92 / .3)', color: 'oklch(80% 0.16 92)', background: 'transparent' }}
+          >‹</button>
+          <span className="text-[11px] uppercase tracking-widest" style={{ color: 'oklch(70% 0.02 92)' }}>
+            Page {page + 1} / {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page >= totalPages - 1}
+            className="w-7 h-7 rounded-full border flex items-center justify-center disabled:opacity-30 transition-opacity"
+            style={{ borderColor: 'oklch(80% 0.16 92 / .3)', color: 'oklch(80% 0.16 92)', background: 'transparent' }}
+          >›</button>
         </div>
       )}
     </div>
   );
+
 
   const MEDAL_SRC: Record<string, string> = {
     third:  '/lottie/medal-3rd-bronze.json',
@@ -116,21 +148,34 @@ export function BeeStandings({ players, onPlayAgain, onDashboard }: BeeStandings
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
-          className="w-full max-w-lg mx-auto flex flex-col items-center gap-6 py-10 px-4"
+          className="w-full max-w-lg mx-auto flex flex-col items-center gap-4 py-10 px-4"
         >
           <div className="text-center">
-            <Trophy className="w-8 h-8 text-primary mx-auto mb-2" />
-            <h1 className="text-2xl font-bungee text-white uppercase tracking-wide">Final Standings</h1>
-            {rest.length > 0 && <p className="text-muted-foreground text-sm mt-1">Ranks 4 and below — top 3 revealed next</p>}
+            <h1
+              className="font-bungee uppercase tracking-[.08em]"
+              style={{ fontSize: 14, color: 'oklch(80% 0.16 92)' }}
+            >
+              Final Standings
+            </h1>
+            {rest.length > 0 && (
+              <p
+                className="mt-1 uppercase tracking-[.1em]"
+                style={{ fontSize: 11, color: 'oklch(70% 0.02 92)' }}
+              >
+                Ranks 4 and below — top 3 revealed next
+              </p>
+            )}
           </div>
           {rest.length > 0 && restList(false)}
           <button
             onClick={() => setStep('third')}
-            className="relative w-full max-w-[280px] bg-primary text-primary-foreground rounded-xl py-3 px-6 text-[15px] font-bungee tracking-[3px] uppercase flex items-center justify-center gap-3 hover:brightness-105 transition"
+            className="w-full max-w-[260px] font-bungee uppercase tracking-wide rounded-[12px] py-3.5 transition-[filter] hover:brightness-110 active:scale-95"
+            style={{ background: 'oklch(80% 0.16 92)', color: 'oklch(30% 0.03 60)', fontSize: 13 }}
           >
-            Reveal Top 3 <ArrowRight className="w-5 h-5" />
+            Reveal Top 3 ▶
           </button>
         </motion.div>
+
       )}
       {step === 'third'  && medalStep(top3[2], 'Reveal 2nd Place', () => setStep('second'), 'third')}
       {step === 'second' && medalStep(top3[1], 'Reveal Winner',    () => setStep('first'),  'second')}
