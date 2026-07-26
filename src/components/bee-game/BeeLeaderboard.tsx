@@ -2,6 +2,10 @@
 // Adds: rank-change slide animation + up/down arrows (vs. previousRankMap,
 // captured by useBeeGame.startNextRound — see useBeeGame.ts patch), initials
 // avatars, and 10-per-page pagination for larger rosters.
+// v2: row status now shows total time spent (this game's real ranking basis)
+// instead of a "N correct" count. Note the slide/arrow animation is a no-op
+// on Round 1 by design — there's no previous rank to compare against yet;
+// it activates from Round 2 onward.
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, ArrowUp, ArrowDown, Trophy } from 'lucide-react';
@@ -80,7 +84,7 @@ export function BeeLeaderboard({ players, round, previousRankMap, onNextRound }:
                 {player.name}
               </span>
               <span className="text-xs text-muted-foreground uppercase tracking-wider">
-                {player.status === 'eliminated' ? 'Out' : `${player.wordsCorrect} correct`}
+                {player.status === 'eliminated' ? 'Out' : `${(player.totalTimeMs / 1000).toFixed(1)}s`}
               </span>
             </motion.div>
           );
