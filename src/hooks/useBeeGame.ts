@@ -6,6 +6,7 @@ import {
   BeeWord,
   BeeGamePhase,
   createEmptyBeeGameState,
+  compareBeePlayers,
 } from '@/types/bee';
 
 function shuffle<T>(arr: T[]): T[] {
@@ -292,6 +293,10 @@ export function useBeeGame(
       if (prev.phase !== 'round-leaderboard') return prev;
       const activePlayers = prev.players.filter((p) => p.status === 'active');
 
+      // Snapshot current ranks — used by the next leaderboard visit for rank-change arrows
+      const rankedNow = [...prev.players].sort(compareBeePlayers);
+      const previousRankMap = Object.fromEntries(rankedNow.map((p, i) => [p.id, i + 1]));
+
       if (activePlayers.length <= 1) {
         return { ...prev, phase: 'champion', currentPlayerId: activePlayers[0]?.id ?? null, lastResult: null };
       }
@@ -313,6 +318,7 @@ export function useBeeGame(
         currentRound: nextRound,
         hintsUsedThisTurn: [],
         lastResult: null,
+        previousRankMap,
         phase: 'turn-intro',
       };
     });

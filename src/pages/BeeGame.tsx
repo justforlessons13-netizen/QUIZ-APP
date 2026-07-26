@@ -143,6 +143,7 @@ function BeeGameController({ pack, sessionId, ownerId }: { pack: BeePack; sessio
               key={`leaderboard-${game.currentRound}`}
               players={game.players}
               round={game.currentRound}
+              previousRankMap={game.previousRankMap}
               onNextRound={startNextRound}
             />
           )}

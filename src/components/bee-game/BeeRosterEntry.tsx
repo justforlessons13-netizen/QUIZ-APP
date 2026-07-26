@@ -1,3 +1,8 @@
+// Replaces src/components/bee-game/BeeRosterEntry.tsx
+// Fixes the same leftover-QGame-purple issue as BeeGame-color-fixes.tsx: three
+// spots hardcode #adbbff instead of the theme-relative "primary" token every
+// other Bee screen already uses. This is the file the screenshot showed still
+// on the old blue/teal look — swap it in for the gold theme.
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Users, X } from 'lucide-react';
@@ -47,7 +52,7 @@ export function BeeRosterEntry({ rules, onStart }: BeeRosterEntryProps) {
       )}
 
       <div className="w-full flex flex-col gap-3">
-        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[2px] text-[#adbbff]/80 font-sugo">
+        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[2px] text-primary/80 font-sugo">
           <Users className="w-4 h-4 text-primary" />
           Roster
         </div>
@@ -87,7 +92,7 @@ export function BeeRosterEntry({ rules, onStart }: BeeRosterEntryProps) {
           <button
             onClick={handleAdd}
             disabled={!name.trim()}
-            className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl w-[50px] h-[50px] text-[#adbbff] text-2xl flex items-center justify-center font-bold shrink-0 hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl w-[50px] h-[50px] text-primary text-2xl flex items-center justify-center font-bold shrink-0 hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             +
           </button>
@@ -102,7 +107,7 @@ export function BeeRosterEntry({ rules, onStart }: BeeRosterEntryProps) {
         onClick={() => onStart(names)}
         disabled={names.length < 2}
         className="relative w-full max-w-[320px] bg-transparent border-2 border-primary rounded-xl py-3 px-6 text-primary text-[15px] font-bungee tracking-[3px] uppercase flex items-center justify-center gap-3 animate-borderPulse disabled:opacity-50 disabled:animate-none hover:bg-primary/10 transition-colors shadow-2xl mx-auto"
-        style={names.length < 2 ? { boxShadow: 'none', borderColor: 'rgba(173,187,255,0.2)' } : undefined}
+        style={names.length < 2 ? { boxShadow: 'none', borderColor: 'hsl(var(--primary) / 0.2)' } : undefined}
       >
         <Play className={`w-5 h-5 fill-current ${names.length >= 2 ? 'animate-iconPop' : ''}`} />
         Start Bee

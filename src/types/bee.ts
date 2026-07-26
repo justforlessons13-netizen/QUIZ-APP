@@ -59,6 +59,7 @@ export interface BeeGameState {
   wordRevealedAt: number | null; // epoch ms — stopwatch start, set by revealWord()
   hintsUsedThisTurn: Array<'definition' | 'sentence'>;
   lastResult: { playerId: string; wordId: string; correct: boolean | null; elapsedMs: number | null } | null;
+  previousRankMap: Record<string, number> | null; // powers BeeLeaderboard rank-change arrows
   createdAt: string;
   gameCode: string; // stage device join code — looked up via bee-game-codes/{gameCode}
 }
@@ -120,6 +121,7 @@ export function createEmptyBeeGameState(
     wordRevealedAt: null,
     hintsUsedThisTurn: [],
     lastResult: null,
+    previousRankMap: null,
     createdAt: new Date().toISOString(),
     gameCode: Math.random().toString(36).substring(2, 6).toUpperCase(),
   };
