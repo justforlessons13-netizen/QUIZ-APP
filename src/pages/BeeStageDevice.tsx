@@ -180,7 +180,7 @@ export default function BeeStageDevice() {
   if (!sessionId) {
     const digits = code.padEnd(4, ' ').slice(0, 4).split('');
     return (
-      <div className="min-h-screen bg-radial-dark flex flex-col items-center justify-center p-4 gap-6">
+      <div className="bee-theme min-h-screen bg-radial-bee flex flex-col items-center justify-center p-4 gap-6">
         <div className="text-center">
           <h1 className="text-2xl font-bungee text-white uppercase tracking-wide">Stage Device</h1>
           <p className="text-muted-foreground text-sm mt-1 font-sugo uppercase tracking-widest">
@@ -241,7 +241,7 @@ export default function BeeStageDevice() {
 
 
   return (
-    <div className="min-h-screen bg-radial-dark flex flex-col items-center justify-center p-4">
+    <div className="bee-theme min-h-screen bg-radial-bee flex flex-col items-center justify-center p-4">
       <AnimatePresence mode="wait">
         {game.phase === 'turn-intro' && currentPlayer && (
           <motion.div

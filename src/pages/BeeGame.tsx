@@ -74,7 +74,7 @@ function BeeGameController({ pack, sessionId, ownerId }: { pack: BeePack; sessio
     : null;
 
   return (
-    <div className="min-h-screen relative flex flex-col overflow-hidden bg-radial-dark">
+    <div className="bee-theme min-h-screen relative flex flex-col overflow-hidden bg-radial-bee">
       {game.phase !== 'roster-entry' && (
         <header className="relative z-20 flex justify-between items-center w-full p-6 text-primary font-bungee text-sm md:text-base tracking-wider">
           <button
