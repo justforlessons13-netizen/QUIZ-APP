@@ -3,7 +3,7 @@
 // podium (podium + paginated rest below it). Initials avatars throughout.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, RotateCcw, LayoutDashboard, ArrowRight } from 'lucide-react';
+import { Trophy, RotateCcw, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { BeePlayer, compareBeePlayers } from '@/types/bee';
@@ -25,12 +25,12 @@ function timeLabel(player?: BeePlayer): string {
   return `${(player.totalTimeMs / 1000).toFixed(1)}s total`;
 }
 
-function Avatar({ player, size }: { player: BeePlayer; size: number }) {
+function Avatar({ player, size, zIndex }: { player: BeePlayer; size: number; zIndex?: number }) {
   const color = beeAvatarColor(player.name);
   return (
     <div
       className="rounded-full flex items-center justify-center font-bungee shrink-0"
-      style={{ width: size, height: size, background: `${color}22`, border: `2px solid ${color}`, color, fontSize: size * 0.32 }}
+      style={{ width: size, height: size, background: `${color}22`, border: `2px solid ${color}`, color, fontSize: size * 0.32, position: 'relative', zIndex }}
     >
       {beeInitials(player.name)}
     </div>
@@ -108,37 +108,92 @@ export function BeeStandings({ players, onPlayAgain, onDashboard }: BeeStandings
   );
 
 
-  const MEDAL_SRC: Record<string, string> = {
+  const PLACE_LABELS: Record<string, string> = { third: '3rd place', second: '2nd place', first: 'Champion' };
+  const PLACE_PILL_STYLE: Record<string, React.CSSProperties> = {
+    third:  { background: 'oklch(60% 0.08 55 / .18)', border: '1px solid oklch(60% 0.08 55 / .5)',  color: 'oklch(72% 0.1 55)' },
+    second: { background: 'oklch(85% 0.01 250 / .18)', border: '1px solid oklch(85% 0.01 250 / .5)', color: 'oklch(88% 0.01 250)' },
+    first:  { background: 'oklch(80% 0.16 92 / .2)',   border: '1px solid oklch(80% 0.16 92 / .6)',  color: 'oklch(80% 0.16 92)' },
+  };
+  const LOTTIE_SRC: Record<string, string> = {
     third:  '/lottie/medal-3rd-bronze.json',
     second: '/lottie/medal-2nd-silver.json',
     first:  '/lottie/crown.json',
   };
+  const LOTTIE_SIZE: Record<string, number> = { third: 170, second: 190, first: 200 };
+  const NEXT_LABEL: Record<string, string> = { third: 'Reveal 2nd place ▶', second: 'Reveal winner ▶', first: 'View podium ▶' };
+  const CONFETTI_SRC = 'https://lottie.host/79266ebc-8b4a-4b7c-a1a0-326ac1057a23/JU5NbpIPAL.lottie';
 
-  const medalStep = (player: BeePlayer | undefined, nextLabel: string, onNext: () => void, key: 'third' | 'second' | 'first') => (
-    <motion.div
-      key={key}
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      className="w-full max-w-lg mx-auto flex flex-col items-center gap-5 py-14 px-4 text-center"
-    >
-      <DotLottieReact
-        src={MEDAL_SRC[key]}
-        autoplay
-        loop={key === 'first'}
-        style={{ width: 120, height: 120 }}
-      />
-      {player && <Avatar player={player} size={72} />}
-      <h1 className="text-3xl font-bungee text-white uppercase tracking-wide">{player?.name ?? '—'}</h1>
-      <p className="text-muted-foreground text-sm">{timeLabel(player)}</p>
-      <button
-        onClick={onNext}
-        className="relative bg-transparent border-2 border-primary rounded-xl py-3 px-8 text-primary text-[15px] font-bungee tracking-[3px] uppercase flex items-center gap-3 hover:bg-primary/10 transition-colors"
+  const medalStep = (player: BeePlayer | undefined, onNext: () => void, key: 'third' | 'second' | 'first') => {
+    const lottieSize = LOTTIE_SIZE[key];
+    return (
+      <motion.div
+        key={key}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        className="w-full max-w-lg mx-auto flex flex-col items-center gap-4 py-14 px-4 text-center relative"
       >
-        {nextLabel} <ArrowRight className="w-5 h-5" />
-      </button>
-    </motion.div>
-  );
+        {/* Confetti — winner step only */}
+        {key === 'first' && (
+          <DotLottieReact
+            src={CONFETTI_SRC}
+            autoplay
+            loop
+            style={{
+              position: 'absolute', top: '50%', left: '50%',
+              width: 520, height: 520,
+              transform: 'translate(-50%, -50%)',
+              pointerEvents: 'none', zIndex: 0,
+            }}
+          />
+        )}
+
+        {/* Place badge pill */}
+        <div
+          className="font-bungee text-[12px] uppercase tracking-[.1em] px-4 py-1.5 rounded-full relative z-10"
+          style={PLACE_PILL_STYLE[key]}
+        >
+          {PLACE_LABELS[key]}
+        </div>
+
+        {/* Medal / Crown Lottie */}
+        <div style={{ width: lottieSize, height: lottieSize, position: 'relative', zIndex: 2 }}>
+          <DotLottieReact
+            src={LOTTIE_SRC[key]}
+            autoplay
+            loop
+            style={{ width: '100%', height: '100%' }}
+          />
+        </div>
+
+        {/* Avatar */}
+        {player && <Avatar player={player} size={key === 'first' ? 64 : 56} zIndex={2} />}
+
+        {/* Name */}
+        <h1
+          className="font-bungee text-white uppercase relative z-10"
+          style={{ fontSize: key === 'first' ? 32 : 26 }}
+        >
+          {player?.name ?? '—'}
+        </h1>
+
+        {/* Time / sub-label */}
+        <p className="relative z-10" style={{ fontSize: key === 'first' ? 15 : 14, color: 'oklch(80% 0.16 92)' }}>
+          {timeLabel(player)}
+        </p>
+
+        {/* Next button */}
+        <button
+          onClick={onNext}
+          className="font-bungee uppercase rounded-[12px] transition-[filter] hover:brightness-110 active:scale-95 relative z-10"
+          style={{ padding: '14px 30px', background: 'oklch(80% 0.16 92)', color: 'oklch(30% 0.03 60)', fontSize: 13 }}
+        >
+          {NEXT_LABEL[key]}
+        </button>
+      </motion.div>
+    );
+  };
+
 
   return (
     <AnimatePresence mode="wait">
@@ -177,9 +232,9 @@ export function BeeStandings({ players, onPlayAgain, onDashboard }: BeeStandings
         </motion.div>
 
       )}
-      {step === 'third'  && medalStep(top3[2], 'Reveal 2nd Place', () => setStep('second'), 'third')}
-      {step === 'second' && medalStep(top3[1], 'Reveal Winner',    () => setStep('first'),  'second')}
-      {step === 'first'  && medalStep(top3[0], 'View Podium',      () => setStep('podium'), 'first')}
+      {step === 'third'  && medalStep(top3[2], () => setStep('second'), 'third')}
+      {step === 'second' && medalStep(top3[1], () => setStep('first'),  'second')}
+      {step === 'first'  && medalStep(top3[0], () => setStep('podium'), 'first')}
       {step === 'podium' && (
         <motion.div
           key="podium"
