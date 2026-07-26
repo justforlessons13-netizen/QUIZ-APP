@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Users, X } from 'lucide-react';
+import { beeInitials, beeAvatarColor } from '@/lib/beeAvatar';
 
 interface BeeRosterEntryProps {
   rules?: string;
@@ -59,24 +60,40 @@ export function BeeRosterEntry({ rules, onStart }: BeeRosterEntryProps) {
 
         <div className="flex flex-wrap gap-2 min-h-[44px]">
           <AnimatePresence>
-            {names.map(n => (
-              <motion.div
-                key={n}
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.5, opacity: 0 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 22 }}
-                className="flex items-center gap-1.5 bg-black/40 border border-white/10 rounded-full pl-3 pr-1.5 py-1.5 text-sm text-foreground tracking-wide"
-              >
-                {n}
-                <button
-                  onClick={() => handleRemove(n)}
-                  className="w-5 h-5 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+            {names.map(n => {
+              const color = beeAvatarColor(n);
+              return (
+                <motion.div
+                  key={n}
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.5, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 22 }}
+                  className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-full py-1.5 pr-1.5"
+                  style={{ paddingLeft: 6, fontSize: 13, color: '#fff' }}
                 >
-                  <X className="w-3 h-3 text-muted-foreground" />
-                </button>
-              </motion.div>
-            ))}
+                  {/* Avatar circle */}
+                  <span
+                    className="font-bungee shrink-0 flex items-center justify-center"
+                    style={{
+                      width: 24, height: 24, borderRadius: '50%',
+                      background: `${color}22`,
+                      border: `1.5px solid ${color}`,
+                      fontSize: 9, color,
+                    }}
+                  >
+                    {beeInitials(n)}
+                  </span>
+                  <span className="tracking-wide">{n}</span>
+                  <button
+                    onClick={() => handleRemove(n)}
+                    className="w-5 h-5 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+                  >
+                    <X className="w-3 h-3 text-muted-foreground" />
+                  </button>
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
         </div>
 
