@@ -75,6 +75,37 @@ function BeeGameController({ pack, sessionId, ownerId }: { pack: BeePack; sessio
 
   return (
     <div className="bee-theme min-h-screen relative flex flex-col overflow-hidden bg-radial-bee">
+      {/* Honeycomb tile — design's fixed faint hex pattern */}
+      <svg
+        width="100%" height="100%"
+        viewBox="0 0 200 200"
+        preserveAspectRatio="xMidYMid slice"
+        className="fixed inset-0 pointer-events-none"
+        style={{ opacity: 0.05, zIndex: 0 }}
+      >
+        <polygon points="20,0 40,11 40,33 20,44 0,33 0,11"    fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="60,0 80,11 80,33 60,44 40,33 40,11"  fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="100,0 120,11 120,33 100,44 80,33 80,11" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="140,0 160,11 160,33 140,44 120,33 120,11" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="180,0 200,11 200,33 180,44 160,33 160,11" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="0,44 20,55 20,77 0,88 -20,77 -20,55" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="40,44 60,55 60,77 40,88 20,77 20,55" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="80,44 100,55 100,77 80,88 60,77 60,55" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="120,44 140,55 140,77 120,88 100,77 100,55" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="160,44 180,55 180,77 160,88 140,77 140,55" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="200,44 220,55 220,77 200,88 180,77 180,55" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="20,88 40,99 40,121 20,132 0,121 0,99"  fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="60,88 80,99 80,121 60,132 40,121 40,99" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="100,88 120,99 120,121 100,132 80,121 80,99" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="140,88 160,99 160,121 140,132 120,121 120,99" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="180,88 200,99 200,121 180,132 160,121 160,99" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="0,132 20,143 20,165 0,176 -20,165 -20,143" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="40,132 60,143 60,165 40,176 20,165 20,143" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="80,132 100,143 100,165 80,176 60,165 60,143" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="120,132 140,143 140,165 120,176 100,165 100,143" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="160,132 180,143 180,165 160,176 140,165 140,143" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <polygon points="200,132 220,143 220,165 200,176 180,165 180,143" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+      </svg>
       {game.phase !== 'roster-entry' && (
         <header className="relative z-20 flex justify-between items-center w-full p-6 text-primary font-bungee text-sm md:text-base tracking-wider">
           <button
