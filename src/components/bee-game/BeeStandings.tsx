@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, RotateCcw, LayoutDashboard, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { BeePlayer, compareBeePlayers } from '@/types/bee';
 import { playFanfare } from '@/lib/sounds';
 import { beeInitials, beeAvatarColor } from '@/lib/beeAvatar';
@@ -75,7 +76,13 @@ export function BeeStandings({ players, onPlayAgain, onDashboard }: BeeStandings
     </div>
   );
 
-  const medalStep = (player: BeePlayer | undefined, nextLabel: string, onNext: () => void, emoji: string, key: string) => (
+  const MEDAL_SRC: Record<string, string> = {
+    third:  '/lottie/medal-3rd-bronze.json',
+    second: '/lottie/medal-2nd-silver.json',
+    first:  '/lottie/crown.json',
+  };
+
+  const medalStep = (player: BeePlayer | undefined, nextLabel: string, onNext: () => void, key: 'third' | 'second' | 'first') => (
     <motion.div
       key={key}
       initial={{ opacity: 0, scale: 0.9 }}
@@ -83,7 +90,12 @@ export function BeeStandings({ players, onPlayAgain, onDashboard }: BeeStandings
       exit={{ opacity: 0, scale: 0.9 }}
       className="w-full max-w-lg mx-auto flex flex-col items-center gap-5 py-14 px-4 text-center"
     >
-      <div className="text-6xl">{emoji}</div>
+      <DotLottieReact
+        src={MEDAL_SRC[key]}
+        autoplay
+        loop={key === 'first'}
+        style={{ width: 120, height: 120 }}
+      />
       {player && <Avatar player={player} size={72} />}
       <h1 className="text-3xl font-bungee text-white uppercase tracking-wide">{player?.name ?? '—'}</h1>
       <p className="text-muted-foreground text-sm">{timeLabel(player)}</p>
@@ -120,9 +132,9 @@ export function BeeStandings({ players, onPlayAgain, onDashboard }: BeeStandings
           </button>
         </motion.div>
       )}
-      {step === 'third' && medalStep(top3[2], 'Reveal 2nd Place', () => setStep('second'), '🥉', 'third')}
-      {step === 'second' && medalStep(top3[1], 'Reveal Winner', () => setStep('first'), '🥈', 'second')}
-      {step === 'first' && medalStep(top3[0], 'View Podium', () => setStep('podium'), '🥇', 'first')}
+      {step === 'third'  && medalStep(top3[2], 'Reveal 2nd Place', () => setStep('second'), 'third')}
+      {step === 'second' && medalStep(top3[1], 'Reveal Winner',    () => setStep('first'),  'second')}
+      {step === 'first'  && medalStep(top3[0], 'View Podium',      () => setStep('podium'), 'first')}
       {step === 'podium' && (
         <motion.div
           key="podium"
@@ -146,7 +158,13 @@ export function BeeStandings({ players, onPlayAgain, onDashboard }: BeeStandings
                       color: '#fff',
                     }}
                   >
-                    {idx === 1 ? '🥇' : idx === 0 ? '🥈' : '🥉'}
+                    {idx === 1 ? (
+                      <DotLottieReact src="/lottie/crown.json" autoplay loop style={{ width: 36, height: 36 }} />
+                    ) : idx === 0 ? (
+                      <DotLottieReact src="/lottie/medal-2nd-silver.json" autoplay style={{ width: 32, height: 32 }} />
+                    ) : (
+                      <DotLottieReact src="/lottie/medal-3rd-bronze.json" autoplay style={{ width: 32, height: 32 }} />
+                    )}
                   </div>
                 </div>
               ) : null
