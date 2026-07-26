@@ -1,11 +1,11 @@
 // Replaces src/pages/BeeStageDevice.tsx
-// Adds two missing screens on the shared stage device (whoever is physically
-// holding it = "you" for that turn): a "called" screen when phase is
-// 'turn-intro' (avatar + name + Good luck!), and a 'result' screen after
-// submit — previously missing entirely, the device just fell back to the
-// generic "Up next" waiting view with no feedback after answering. Now shows
-// your typed answer, the correct spelling, correct/incorrect (or eliminated),
-// time spent, and a "See you next round" / "Thanks for playing" line.
+// Adds the "called" + "result" screens (see earlier patch notes below), and
+// fixes a stale-display bug: the generic "waiting" fallback used to always
+// show "Up next: {currentPlayer.name}", but currentPlayerId isn't reset when
+// the host moves into round-leaderboard/tie-break/etc — it still points at
+// whoever took the *last* turn, even if that player was just eliminated. The
+// device isn't actually re-calling them, it's just stale copy. Now the
+// fallback shows phase-appropriate text instead of naming a stale player.
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -228,6 +228,18 @@ export default function BeeStageDevice() {
   const resultCorrect = game.lastResult?.correct ?? null;
   const resultEliminated = resultCorrect === false;
 
+  const waitingLabel =
+    game.phase === 'champion' || game.phase === 'finished'
+      ? 'Bee complete'
+      : game.phase === 'round-leaderboard'
+      ? 'Reviewing round standings'
+      : game.phase === 'tie-break'
+      ? 'Tiebreak in progress'
+      : game.phase === 'stage-pairing'
+      ? 'Get ready'
+      : 'Waiting';
+
+
   return (
     <div className="min-h-screen bg-radial-dark flex flex-col items-center justify-center p-4">
       <AnimatePresence mode="wait">
@@ -302,13 +314,8 @@ export default function BeeStageDevice() {
               <Mic className="w-6 h-6 text-primary" />
             </div>
             <p className="text-muted-foreground text-xs uppercase tracking-[3px] font-sugo">
-              {game.phase === 'champion' || game.phase === 'finished' ? 'Bee complete' : 'Waiting'}
+              {waitingLabel}
             </p>
-            {currentPlayer && game.phase !== 'champion' && game.phase !== 'finished' && (
-              <h1 className="text-2xl font-bungee text-white uppercase tracking-wide">
-                Up next: {currentPlayer.name}
-              </h1>
-            )}
           </motion.div>
         )}
 
