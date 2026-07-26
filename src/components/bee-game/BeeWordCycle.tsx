@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Check, X } from 'lucide-react';
+import { Check, X, SkipForward, Loader2 } from 'lucide-react';
 import { BeePlayer, BeeWord } from '@/types/bee';
 
 interface BeeWordCycleProps {
@@ -15,20 +15,14 @@ interface BeeWordCycleProps {
 }
 
 const GOLD = 'oklch(80% 0.16 92)';
+const GOLD_DIM = 'oklch(70% 0.02 92)';
 
 export function BeeWordCycle({
-  word, player, hintsUsed, onRequestHint, onCorrect, onIncorrect,
+  word, player, hintsUsed, onRequestHint, onCorrect, onIncorrect, onSkip, onSubstituteWord,
 }: BeeWordCycleProps) {
   const definitionRevealed = hintsUsed.includes('definition');
   const sentenceRevealed = hintsUsed.includes('sentence');
-  const [spelling, setSpelling] = useState('');
-
-  const handleSubmit = () => {
-    if (!spelling.trim()) return;
-    const correct = spelling.trim().toLowerCase() === word.word.toLowerCase();
-    correct ? onCorrect() : onIncorrect();
-    setSpelling('');
-  };
+  const [manualGrading, setManualGrading] = useState(false);
 
   return (
     <motion.div
@@ -41,7 +35,7 @@ export function BeeWordCycle({
       {/* "{Name}'s word" label */}
       <div
         className="uppercase tracking-[.15em]"
-        style={{ fontSize: 12, color: 'oklch(70% 0.02 92)' }}
+        style={{ fontSize: 12, color: GOLD_DIM }}
       >
         {player.name}'s word
       </div>
@@ -73,7 +67,7 @@ export function BeeWordCycle({
         </h1>
       </div>
 
-      {/* Hint buttons — outside the card */}
+      {/* Hint buttons — outside card, below it */}
       <div className="flex gap-3">
         <button
           onClick={() => onRequestHint('definition')}
@@ -87,7 +81,7 @@ export function BeeWordCycle({
             fontSize: 11,
           }}
         >
-          Definition
+          {definitionRevealed ? 'Hide definition' : 'Definition'}
         </button>
         <button
           onClick={() => onRequestHint('sentence')}
@@ -102,7 +96,7 @@ export function BeeWordCycle({
             fontSize: 11,
           }}
         >
-          Use in sentence
+          {sentenceRevealed ? 'Hide sentence' : 'Use in sentence'}
         </button>
       </div>
 
@@ -133,41 +127,60 @@ export function BeeWordCycle({
         )}
       </div>
 
-      {/* Spelling input + Submit */}
-      <div className="flex gap-2.5 w-full" style={{ maxWidth: 420 }}>
-        <input
-          type="text"
-          value={spelling}
-          onChange={e => setSpelling(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-          placeholder="Type the spelling..."
-          className="flex-1 focus:outline-none text-center"
-          style={{
-            background: 'rgba(0,0,0,.4)',
-            border: `1px solid ${GOLD}4d`,
-            borderRadius: 12,
-            padding: 16,
-            color: '#fff',
-            fontSize: 16,
-            fontFamily: "'Space Grotesk', sans-serif",
-          }}
-        />
+      {/* Waiting status */}
+      <div
+        className="flex items-center gap-2 uppercase tracking-[.1em]"
+        style={{ fontSize: 12, color: GOLD_DIM }}
+      >
+        <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+        Waiting for {player.name} to answer on the stage device…
+      </div>
+
+      {/* Manual grading */}
+      {manualGrading ? (
+        <div className="w-full grid grid-cols-2 gap-3" style={{ maxWidth: 420 }}>
+          <button
+            onClick={onCorrect}
+            className="flex items-center justify-center gap-2 py-4 rounded-xl font-bungee text-sm uppercase tracking-wider transition-[filter] hover:brightness-110"
+            style={{ background: 'oklch(55% 0.18 145 / .2)', border: '1px solid oklch(55% 0.18 145 / .4)', color: 'oklch(70% 0.15 145)' }}
+          >
+            <Check className="w-5 h-5" /> Correct
+          </button>
+          <button
+            onClick={onIncorrect}
+            className="flex items-center justify-center gap-2 py-4 rounded-xl font-bungee text-sm uppercase tracking-wider transition-[filter] hover:brightness-110"
+            style={{ background: 'oklch(55% 0.2 25 / .2)', border: '1px solid oklch(55% 0.2 25 / .4)', color: 'oklch(70% 0.2 25)' }}
+          >
+            <X className="w-5 h-5" /> Incorrect
+          </button>
+        </div>
+      ) : (
         <button
-          onClick={handleSubmit}
-          disabled={!spelling.trim()}
-          className="font-bungee uppercase transition-[filter] hover:brightness-110 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{
-            padding: '16px 20px',
-            borderRadius: 12,
-            background: GOLD,
-            color: 'oklch(30% 0.03 60)',
-            fontSize: 13,
-            border: 'none',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          }}
+          onClick={() => setManualGrading(true)}
+          className="underline underline-offset-2 transition-opacity hover:opacity-80"
+          style={{ fontSize: 12, color: GOLD_DIM }}
         >
-          Submit
+          Device unavailable? Grade manually
+        </button>
+      )}
+
+      {/* Skip / Substitute */}
+      <div className="flex items-center gap-4">
+        <button
+          onClick={onSkip}
+          className="flex items-center gap-1.5 transition-opacity hover:opacity-80"
+          style={{ fontSize: 12, color: GOLD_DIM }}
+        >
+          <SkipForward className="w-3.5 h-3.5" />
+          Skip speller
+        </button>
+        <span style={{ color: `${GOLD_DIM}66` }}>·</span>
+        <button
+          onClick={onSubstituteWord}
+          className="transition-opacity hover:opacity-80"
+          style={{ fontSize: 12, color: GOLD_DIM }}
+        >
+          Wrong word? Substitute
         </button>
       </div>
     </motion.div>
