@@ -76,7 +76,7 @@ function BeeGameController({ pack, sessionId, ownerId }: { pack: BeePack; sessio
   return (
     <div className="min-h-screen relative flex flex-col overflow-hidden bg-radial-dark">
       {game.phase !== 'roster-entry' && (
-        <header className="relative z-20 flex justify-between items-center w-full p-6 text-[#adbbff] font-bungee text-sm md:text-base tracking-wider">
+        <header className="relative z-20 flex justify-between items-center w-full p-6 text-primary font-bungee text-sm md:text-base tracking-wider">
           <button
             onClick={() => navigate('/bee')}
             className="flex items-center gap-3 hover:text-white transition-colors uppercase"
@@ -256,7 +256,7 @@ export default function BeeGame() {
   if (fetchingPack || !sessionId) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-10 h-10 border-[4px] border-[#adbbff] border-t-transparent rounded-full animate-spin" />
+        <div className="w-10 h-10 border-[4px] border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -266,7 +266,7 @@ export default function BeeGame() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
           <p className="text-xl text-muted-foreground font-sugo tracking-wider">Pack not found</p>
-          <Button onClick={() => navigate('/bee')} className="bg-[#adbbff] text-[#120524] font-bungee">Back to Dashboard</Button>
+          <Button onClick={() => navigate('/bee')} className="bg-primary text-primary-foreground font-bungee">Back to Dashboard</Button>
         </div>
       </div>
     );

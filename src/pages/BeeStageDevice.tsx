@@ -1,3 +1,11 @@
+// Replaces src/pages/BeeStageDevice.tsx
+// Adds two missing screens on the shared stage device (whoever is physically
+// holding it = "you" for that turn): a "called" screen when phase is
+// 'turn-intro' (avatar + name + Good luck!), and a 'result' screen after
+// submit — previously missing entirely, the device just fell back to the
+// generic "Up next" waiting view with no feedback after answering. Now shows
+// your typed answer, the correct spelling, correct/incorrect (or eliminated),
+// time spent, and a "See you next round" / "Thanks for playing" line.
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,9 +16,15 @@ import {
   onSnapshot,
   runTransaction,
 } from 'firebase/firestore';
-import { ArrowRight, Mic } from 'lucide-react';
+import { ArrowRight, Mic, Check, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { BeeGameState, BeePack, BeeWord } from '@/types/bee';
+import { beeInitials, beeAvatarColor } from '@/lib/beeAvatar';
+
+function formatElapsed(ms: number): string {
+  const seconds = ms / 1000;
+  return seconds < 10 ? `${seconds.toFixed(1)}s` : `${Math.round(seconds)}s`;
+}
 
 export default function BeeStageDevice() {
   const [searchParams] = useSearchParams();
@@ -25,6 +39,7 @@ export default function BeeStageDevice() {
   const [pack, setPack] = useState<BeePack | null>(null);
 
   const [answer, setAnswer] = useState('');
+  const [lastAnswer, setLastAnswer] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -57,7 +72,6 @@ export default function BeeStageDevice() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Subscribe to the live game once joined
   useEffect(() => {
     if (!sessionId) return;
     const db = getFirestore();
@@ -67,7 +81,6 @@ export default function BeeStageDevice() {
     return () => unsub();
   }, [sessionId]);
 
-  // Fetch the pack once we know which one this session uses
   useEffect(() => {
     if (!game?.packId || pack) return;
     const db = getFirestore();
@@ -80,7 +93,6 @@ export default function BeeStageDevice() {
   const currentWordId = game ? game.wordOrder[game.currentWordIndex] : undefined;
   const currentWord: BeeWord | null = pack?.words.find((w) => w.id === currentWordId) ?? null;
 
-  // Reset the input + hint + tracked word whenever a new word cycle begins
   useEffect(() => {
     if (game?.phase === 'word-cycle' && game.currentWordIndex !== lastKnownWordIndex.current) {
       lastKnownWordIndex.current = game.currentWordIndex;
@@ -146,6 +158,7 @@ export default function BeeStageDevice() {
         });
       });
 
+      setLastAnswer(typedAnswer);
       setAnswer('');
     } catch (err: any) {
       if (err?.message === 'STALE_WORD') {
@@ -164,7 +177,6 @@ export default function BeeStageDevice() {
     }
   };
 
-  // ── Not yet joined: code entry ──
   if (!sessionId) {
     const digits = code.padEnd(4, ' ').slice(0, 4).split('');
     return (
@@ -204,21 +216,81 @@ export default function BeeStageDevice() {
     );
   }
 
-  // ── Joined, waiting for game to load ──
   if (!game) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-10 h-10 border-[4px] border-[#adbbff] border-t-transparent rounded-full animate-spin" />
+        <div className="w-10 h-10 border-[4px] border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   const definitionRevealed = game.hintsUsedThisTurn.includes('definition');
+  const resultCorrect = game.lastResult?.correct ?? null;
+  const resultEliminated = resultCorrect === false;
 
   return (
     <div className="min-h-screen bg-radial-dark flex flex-col items-center justify-center p-4">
       <AnimatePresence mode="wait">
-        {game.phase !== 'word-cycle' && (
+        {game.phase === 'turn-intro' && currentPlayer && (
+          <motion.div
+            key="called"
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="w-full max-w-md flex flex-col items-center gap-4 text-center"
+          >
+            <p className="text-muted-foreground text-xs uppercase tracking-[3px] font-sugo">You're up</p>
+            <div
+              className="w-24 h-24 rounded-full flex items-center justify-center font-bungee text-3xl"
+              style={{
+                background: `${beeAvatarColor(currentPlayer.name)}22`,
+                border: `3px solid ${beeAvatarColor(currentPlayer.name)}`,
+                color: beeAvatarColor(currentPlayer.name),
+              }}
+            >
+              {beeInitials(currentPlayer.name)}
+            </div>
+            <h1 className="text-3xl font-bungee text-white uppercase tracking-wide">{currentPlayer.name}</h1>
+            <p className="font-bungee text-primary text-sm uppercase tracking-widest">Good luck! 🍀</p>
+            <p className="text-xs text-muted-foreground max-w-xs">
+              Listen closely — your input box appears the moment the host reveals the word.
+            </p>
+          </motion.div>
+        )}
+
+        {game.phase === 'result' && currentPlayer && game.lastResult && (
+          <motion.div
+            key="result"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="w-full max-w-md flex flex-col items-center gap-3 text-center"
+          >
+            <p className="text-muted-foreground text-xs uppercase tracking-[3px] font-sugo">You spelled</p>
+            <h2 className="text-2xl font-bungee text-white lowercase">{lastAnswer || '—'}</h2>
+            <p className="text-muted-foreground text-xs uppercase tracking-[3px] font-sugo mt-1">Correct spelling</p>
+            <h2 className="text-xl font-bungee text-primary lowercase">{currentWord?.word ?? ''}</h2>
+            <div
+              className={`flex items-center gap-2 mt-2 px-5 py-3 rounded-xl border ${
+                resultEliminated ? 'border-destructive/30 bg-destructive/10 text-destructive' : 'border-success/30 bg-success/10 text-success'
+              }`}
+            >
+              {resultEliminated ? <X className="w-5 h-5" /> : <Check className="w-5 h-5" />}
+              <span className="font-bungee text-sm uppercase tracking-wide">
+                {resultEliminated ? 'Incorrect' : 'Correct!'}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {game.lastResult.elapsedMs != null && !resultEliminated ? `${formatElapsed(game.lastResult.elapsedMs)} — nice and quick` : null}
+              {resultEliminated ? 'Eliminated' : null}
+            </p>
+            <p className="font-bungee text-[13px] text-primary uppercase tracking-widest mt-2">
+              {resultEliminated ? 'Thanks for spelling!' : 'See you next round ▶'}
+            </p>
+          </motion.div>
+        )}
+
+        {game.phase !== 'word-cycle' && game.phase !== 'turn-intro' && game.phase !== 'result' && (
           <motion.div
             key="waiting"
             initial={{ opacity: 0, y: 10 }}

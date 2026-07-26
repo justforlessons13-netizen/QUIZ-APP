@@ -1,15 +1,33 @@
+// Replaces src/components/bee-game/BeeLeaderboard.tsx
+// Adds: rank-change slide animation + up/down arrows (vs. previousRankMap,
+// captured by useBeeGame.startNextRound — see useBeeGame.ts patch), initials
+// avatars, and 10-per-page pagination for larger rosters.
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Trophy } from 'lucide-react';
+import { ArrowRight, ArrowUp, ArrowDown, Trophy } from 'lucide-react';
 import { BeePlayer, compareBeePlayers } from '@/types/bee';
+import { beeInitials, beeAvatarColor } from '@/lib/beeAvatar';
+
+const PAGE_SIZE = 10;
+const ROW_HEIGHT = 56;
 
 interface BeeLeaderboardProps {
   players: BeePlayer[];
   round: number;
+  previousRankMap?: Record<string, number> | null;
   onNextRound: () => void;
 }
 
-export function BeeLeaderboard({ players, round, onNextRound }: BeeLeaderboardProps) {
-  const ranked = [...players].sort(compareBeePlayers);
+export function BeeLeaderboard({ players, round, previousRankMap, onNextRound }: BeeLeaderboardProps) {
+  const ranked = useMemo(() => [...players].sort(compareBeePlayers), [players]);
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(ranked.length / PAGE_SIZE));
+
+  const rows = ranked.map((player, i) => {
+    const rank = i + 1;
+    const prevRank = previousRankMap?.[player.id] ?? rank;
+    return { player, rank, prevRank, delta: prevRank - rank };
+  });
 
   return (
     <motion.div
@@ -23,29 +41,73 @@ export function BeeLeaderboard({ players, round, onNextRound }: BeeLeaderboardPr
         <h1 className="text-2xl font-bungee text-white uppercase tracking-wide">Round {round} Standings</h1>
       </div>
 
-      <div className="w-full space-y-2">
-        {ranked.map((player, i) => (
-          <motion.div
-            key={player.id}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.04 }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
-              player.status === 'eliminated'
-                ? 'border-border bg-card/50 opacity-60'
-                : 'border-border bg-card'
-            }`}
-          >
-            <span className="text-muted-foreground font-bungee text-xs w-6 text-center">{i + 1}</span>
-            <span className={`flex-1 font-sugo uppercase tracking-wider text-sm truncate ${player.status === 'eliminated' ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
-              {player.name}
-            </span>
-            <span className="text-xs text-muted-foreground uppercase tracking-wider">
-              {player.status === 'eliminated' ? 'Out' : `${player.wordsCorrect} correct`}
-            </span>
-          </motion.div>
-        ))}
+      <div
+        className="w-full relative"
+        style={{ height: Math.min(ranked.length, PAGE_SIZE) * ROW_HEIGHT }}
+      >
+        {rows.map(({ player, rank, prevRank, delta }) => {
+          const displayIndex = rank - 1 - page * PAGE_SIZE;
+          const prevDisplayIndex = prevRank - 1 - page * PAGE_SIZE;
+          const visible = displayIndex >= 0 && displayIndex < PAGE_SIZE;
+          const color = beeAvatarColor(player.name);
+          return (
+            <motion.div
+              key={player.id}
+              initial={{ top: prevDisplayIndex * ROW_HEIGHT, opacity: visible ? 1 : 0 }}
+              animate={{ top: displayIndex * ROW_HEIGHT, opacity: visible ? 1 : 0 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 28 }}
+              style={{ position: 'absolute', left: 0, right: 0 }}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
+                player.status === 'eliminated' ? 'border-border bg-card/50 opacity-60' : 'border-border bg-card'
+              }`}
+            >
+              <span className="text-muted-foreground font-bungee text-xs w-6 text-center">{rank}</span>
+              <span className="w-4 flex items-center justify-center">
+                {delta > 0 && <ArrowUp className="w-3 h-3 text-success" />}
+                {delta < 0 && <ArrowDown className="w-3 h-3 text-destructive" />}
+              </span>
+              <span
+                className="w-7 h-7 rounded-full flex items-center justify-center font-bungee text-[10px] shrink-0"
+                style={{ background: `${color}22`, border: `1.5px solid ${color}`, color }}
+              >
+                {beeInitials(player.name)}
+              </span>
+              <span
+                className={`flex-1 font-sugo uppercase tracking-wider text-sm truncate ${
+                  player.status === 'eliminated' ? 'text-muted-foreground line-through' : 'text-foreground'
+                }`}
+              >
+                {player.name}
+              </span>
+              <span className="text-xs text-muted-foreground uppercase tracking-wider">
+                {player.status === 'eliminated' ? 'Out' : `${player.wordsCorrect} correct`}
+              </span>
+            </motion.div>
+          );
+        })}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="w-7 h-7 rounded-full border border-primary/30 text-primary disabled:opacity-30"
+          >
+            ‹
+          </button>
+          <span className="text-xs text-muted-foreground uppercase tracking-wider">
+            Page {page + 1} / {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page >= totalPages - 1}
+            className="w-7 h-7 rounded-full border border-primary/30 text-primary disabled:opacity-30"
+          >
+            ›
+          </button>
+        </div>
+      )}
 
       <button
         onClick={onNextRound}

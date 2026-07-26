@@ -1,6 +1,9 @@
+// Replaces src/components/bee-game/BeeTurnIntro.tsx
+// Swaps the generic Mic icon box for the player's initials avatar (colored ring).
 import { motion } from 'framer-motion';
-import { Mic, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { BeePlayer } from '@/types/bee';
+import { beeInitials, beeAvatarColor } from '@/lib/beeAvatar';
 
 interface BeeTurnIntroProps {
   player: BeePlayer;
@@ -11,6 +14,7 @@ interface BeeTurnIntroProps {
 }
 
 export function BeeTurnIntro({ player, round, wordNumber, totalWords, onReveal }: BeeTurnIntroProps) {
+  const color = beeAvatarColor(player.name);
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -23,8 +27,11 @@ export function BeeTurnIntro({ player, round, wordNumber, totalWords, onReveal }
       </div>
 
       <div className="flex flex-col items-center gap-4">
-        <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-          <Mic className="w-7 h-7 text-primary" />
+        <div
+          className="w-20 h-20 rounded-full flex items-center justify-center font-bungee text-2xl"
+          style={{ background: `${color}22`, border: `3px solid ${color}`, color }}
+        >
+          {beeInitials(player.name)}
         </div>
         <div>
           <p className="text-muted-foreground text-xs uppercase tracking-[3px] font-sugo mb-1">Up Next</p>

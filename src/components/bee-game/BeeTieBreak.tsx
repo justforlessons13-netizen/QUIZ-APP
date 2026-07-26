@@ -1,6 +1,8 @@
+// Replaces src/components/bee-game/BeeTieBreak.tsx — adds initials avatars.
 import { motion } from 'framer-motion';
 import { Timer, Zap } from 'lucide-react';
 import { BeePlayer } from '@/types/bee';
+import { beeInitials, beeAvatarColor } from '@/lib/beeAvatar';
 
 interface BeeTieBreakProps {
   players: BeePlayer[];
@@ -13,9 +15,7 @@ function formatElapsed(ms: number): string {
 }
 
 export function BeeTieBreak({ players, onEliminateSlowest }: BeeTieBreakProps) {
-  const active = [...players]
-    .filter((p) => p.status === 'active')
-    .sort((a, b) => a.totalTimeMs - b.totalTimeMs);
+  const active = [...players].filter((p) => p.status === 'active').sort((a, b) => a.totalTimeMs - b.totalTimeMs);
 
   return (
     <motion.div
@@ -33,27 +33,32 @@ export function BeeTieBreak({ players, onEliminateSlowest }: BeeTieBreakProps) {
       </div>
 
       <div className="w-full space-y-2">
-        {active.map((player, i) => (
-          <motion.div
-            key={player.id}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.04 }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
-              i === active.length - 1
-                ? 'border-destructive/30 bg-destructive/5'
-                : 'border-border bg-card'
-            }`}
-          >
-            <span className="text-muted-foreground font-bungee text-xs w-6 text-center">{i + 1}</span>
-            <span className="flex-1 font-sugo uppercase tracking-wider text-sm text-foreground truncate">
-              {player.name}
-            </span>
-            <span className={`text-xs uppercase tracking-wider ${i === active.length - 1 ? 'text-destructive' : 'text-muted-foreground'}`}>
-              {formatElapsed(player.totalTimeMs)} total
-            </span>
-          </motion.div>
-        ))}
+        {active.map((player, i) => {
+          const color = beeAvatarColor(player.name);
+          return (
+            <motion.div
+              key={player.id}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.04 }}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
+                i === active.length - 1 ? 'border-destructive/30 bg-destructive/5' : 'border-border bg-card'
+              }`}
+            >
+              <span className="text-muted-foreground font-bungee text-xs w-6 text-center">{i + 1}</span>
+              <span
+                className="w-7 h-7 rounded-full flex items-center justify-center font-bungee text-[10px] shrink-0"
+                style={{ background: `${color}22`, border: `1.5px solid ${color}`, color }}
+              >
+                {beeInitials(player.name)}
+              </span>
+              <span className="flex-1 font-sugo uppercase tracking-wider text-sm text-foreground truncate">{player.name}</span>
+              <span className={`text-xs uppercase tracking-wider ${i === active.length - 1 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                {formatElapsed(player.totalTimeMs)} total
+              </span>
+            </motion.div>
+          );
+        })}
       </div>
 
       <button
