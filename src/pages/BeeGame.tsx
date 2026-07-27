@@ -75,37 +75,55 @@ function BeeGameController({ pack, sessionId, ownerId }: { pack: BeePack; sessio
 
   return (
     <div className="bee-theme min-h-screen relative flex flex-col overflow-hidden bg-radial-bee">
-      {/* Honeycomb tile — design's fixed faint hex pattern */}
+      {/* ── Background: hex drift + vignette + ambient glow ── */}
+      <style>{`
+        @keyframes bgDrift { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-12px,-8px)} }
+        @keyframes glowPulse { 0%,100%{opacity:.5} 50%{opacity:1} }
+      `}</style>
+
+      {/* Hex polygon layer */}
       <svg
-        width="100%" height="100%"
-        viewBox="0 0 200 200"
-        preserveAspectRatio="xMidYMid slice"
-        className="fixed inset-0 pointer-events-none"
-        style={{ opacity: 0.05, zIndex: 0 }}
+        viewBox="0 0 900 700" xmlns="http://www.w3.org/2000/svg"
+        className="fixed pointer-events-none"
+        style={{ top: -80, left: -80, width: 900, height: 700, opacity: 0.35, zIndex: 0,
+                 animation: 'bgDrift 50s linear infinite' }}
       >
-        <polygon points="20,0 40,11 40,33 20,44 0,33 0,11"    fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="60,0 80,11 80,33 60,44 40,33 40,11"  fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="100,0 120,11 120,33 100,44 80,33 80,11" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="140,0 160,11 160,33 140,44 120,33 120,11" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="180,0 200,11 200,33 180,44 160,33 160,11" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="0,44 20,55 20,77 0,88 -20,77 -20,55" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="40,44 60,55 60,77 40,88 20,77 20,55" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="80,44 100,55 100,77 80,88 60,77 60,55" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="120,44 140,55 140,77 120,88 100,77 100,55" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="160,44 180,55 180,77 160,88 140,77 140,55" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="200,44 220,55 220,77 200,88 180,77 180,55" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="20,88 40,99 40,121 20,132 0,121 0,99"  fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="60,88 80,99 80,121 60,132 40,121 40,99" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="100,88 120,99 120,121 100,132 80,121 80,99" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="140,88 160,99 160,121 140,132 120,121 120,99" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="180,88 200,99 200,121 180,132 160,121 160,99" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="0,132 20,143 20,165 0,176 -20,165 -20,143" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="40,132 60,143 60,165 40,176 20,165 20,143" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="80,132 100,143 100,165 80,176 60,165 60,143" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="120,132 140,143 140,165 120,176 100,165 100,143" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="160,132 180,143 180,165 160,176 140,165 140,143" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
-        <polygon points="200,132 220,143 220,165 200,176 180,165 180,143" fill="none" stroke="oklch(80% 0.16 92)" strokeWidth="1" />
+        <g fill="none" stroke="#3a2e1a" strokeWidth="1.8">
+          <polygon points="100,30 180,65 180,135 100,170 20,135 20,65"/>
+          <polygon points="300,30 380,65 380,135 300,170 220,135 220,65"/>
+          <polygon points="500,30 580,65 580,135 500,170 420,135 420,65"/>
+          <polygon points="700,30 780,65 780,135 700,170 620,135 620,65"/>
+          <polygon points="200,170 280,205 280,275 200,310 120,275 120,205"/>
+          <polygon points="400,170 480,205 480,275 400,310 320,275 320,205"/>
+          <polygon points="600,170 680,205 680,275 600,310 520,275 520,205"/>
+          <polygon points="800,170 880,205 880,275 800,310 720,275 720,205"/>
+          <polygon points="100,310 180,345 180,415 100,450 20,415 20,345"/>
+          <polygon points="300,310 380,345 380,415 300,450 220,415 220,345"/>
+          <polygon points="500,310 580,345 580,415 500,450 420,415 420,345"/>
+          <polygon points="700,310 780,345 780,415 700,450 620,415 620,345"/>
+          <polygon points="200,450 280,485 280,555 200,590 120,555 120,485"/>
+          <polygon points="400,450 480,485 480,555 400,590 320,555 320,485"/>
+          <polygon points="600,450 680,485 680,555 600,590 520,555 520,485"/>
+        </g>
       </svg>
+
+      {/* Vignette */}
+      <div
+        className="fixed inset-0 pointer-events-none"
+        style={{ background: 'radial-gradient(ellipse at 50% 40%, transparent 0%, #0f0b08 70%)', zIndex: 1 }}
+      />
+
+      {/* Ambient gold glow */}
+      <div
+        className="fixed pointer-events-none"
+        style={{
+          top: '42%', left: '50%', transform: 'translate(-50%,-50%)',
+          width: 600, height: 350,
+          background: 'radial-gradient(ellipse, oklch(80% 0.16 92 / 0.08) 0%, transparent 70%)',
+          zIndex: 1,
+          animation: 'glowPulse 5s ease-in-out infinite',
+        }}
+      />
       {game.phase !== 'roster-entry' && (
         <header className="relative z-20 flex justify-between items-center w-full p-6 text-primary font-bungee text-sm md:text-base tracking-wider">
           <button
