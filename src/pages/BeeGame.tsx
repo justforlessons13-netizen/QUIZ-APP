@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, FlagOff } from 'lucide-react';
+import { FlagOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
@@ -124,23 +124,26 @@ function BeeGameController({ pack, sessionId, ownerId }: { pack: BeePack; sessio
           animation: 'glowPulse 5s ease-in-out infinite',
         }}
       />
+      <div className="relative z-20 w-full max-w-[800px] mx-auto flex-1 flex flex-col" style={{ padding: '24px 20px' }}>
       {game.phase !== 'roster-entry' && (
-        <header className="relative z-20 flex justify-between items-center w-full p-6 text-primary font-bungee text-sm md:text-base tracking-wider">
+        <header className="relative flex items-center justify-between font-bungee" style={{ marginBottom: 80 }}>
           <button
             onClick={() => navigate('/bee')}
-            className="flex items-center gap-3 hover:text-white transition-colors uppercase"
+            className="flex items-center hover:opacity-80 transition-opacity uppercase"
+            style={{ gap: 6, color: 'oklch(80% 0.16 92)', fontSize: 13, letterSpacing: '0.12em' }}
           >
-            <ArrowLeft className="w-5 h-5" />
-            Home
+            ← Home
           </button>
-          <div className="opacity-80 text-center flex-1 hidden sm:block uppercase tracking-widest">
+          <div
+            className="absolute left-1/2 -translate-x-1/2 uppercase whitespace-nowrap"
+            style={{ color: 'oklch(80% 0.16 92)', fontSize: 13, letterSpacing: '0.15em' }}
+          >
             {pack.name}
           </div>
-          <div className="w-[70px]" />
         </header>
       )}
 
-      <main className="relative z-20 flex-1 flex flex-col items-center justify-center p-4">
+      <main className="relative flex-1 flex flex-col items-center justify-center">
         <AnimatePresence mode="wait">
           {game.phase === 'roster-entry' && (
             <BeeRosterEntry key="roster-entry" rules={pack.rules} onStart={startSession} />
@@ -237,17 +240,11 @@ function BeeGameController({ pack, sessionId, ownerId }: { pack: BeePack; sessio
           )}
         </AnimatePresence>
       </main>
+      </div>
 
       {/* ── GLOBAL HOST BOTTOM ACTIONS ── */}
       {game.phase !== 'roster-entry' && (
         <div className="fixed bottom-[24px] left-[24px] z-[60] flex items-center gap-4 pointer-events-none">
-          <button
-            onClick={() => navigate('/bee')}
-            className="hover:scale-110 active:scale-95 transition-all opacity-60 hover:opacity-100 pointer-events-auto"
-            title="Home"
-          >
-            <img src="/home.svg" alt="Home" className="h-[20px] w-auto pointer-events-none" />
-          </button>
           {EARLY_EXIT_PHASES.includes(game.phase) &&
             game.players.filter(p => p.status === 'active').length > 2 && (
               <button

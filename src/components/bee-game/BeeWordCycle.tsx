@@ -53,7 +53,7 @@ export function BeeWordCycle({
       >
         <h1
           className="font-bungee break-words"
-          style={{ fontSize: 56, color: GOLD, textTransform: 'lowercase', textShadow: '0 0 30px oklch(80% 0.16 92 / .3)', lineHeight: 1.1 }}
+          style={{ fontSize: 56, color: GOLD, textTransform: 'uppercase', textShadow: '0 0 30px oklch(80% 0.16 92 / .3)', lineHeight: 1.1, letterSpacing: '0.04em' }}
         >
           {word.word}
         </h1>
@@ -72,7 +72,7 @@ export function BeeWordCycle({
             fontSize: 11,
           }}
         >
-          {definitionRevealed ? 'Hide definition' : 'Definition'}
+          Definition
         </button>
         <button
           onClick={() => onRequestHint('sentence')}
@@ -87,7 +87,7 @@ export function BeeWordCycle({
             fontSize: 11,
           }}
         >
-          {sentenceRevealed ? 'Hide sentence' : 'Use in sentence'}
+          Use in sentence
         </button>
       </div>
 
