@@ -1,4 +1,4 @@
-import { QuestionPack } from '@/types/host';
+import { QuestionPack, getRoundCount, MIN_ROUNDS, MAX_ROUNDS, DEFAULT_ROUNDS } from '@/types/host';
 import { Question } from '@/types/game';
 
 /**
@@ -9,6 +9,7 @@ export function exportPackAsJson(pack: QuestionPack) {
     _format: 'quiznight-pack-v1',
     name: pack.name,
     description: pack.description,
+    roundCount: getRoundCount(pack),
     questions: pack.questions.map(q => ({
       round: q.round,
       text: q.text,
@@ -48,10 +49,6 @@ export function parseImportedPack(json: unknown): QuestionPack {
     throw new Error('Invalid file: must contain a "questions" array.');
   }
 
-  if (data.questions.length > 6) {
-    throw new Error('Invalid file: maximum 6 questions (rounds) allowed.');
-  }
-
   const questions: Question[] = data.questions.map((q: unknown, i: number) => {
     if (!q || typeof q !== 'object') {
       throw new Error(`Invalid question at index ${i}.`);
@@ -73,24 +70,35 @@ export function parseImportedPack(json: unknown): QuestionPack {
     } satisfies Question;
   });
 
-  // Pad to 6 questions if less
-  while (questions.length < 6) {
-    const round = questions.length + 1;
+  const highestRound = Math.max(...questions.map(q => q.round), 1);
+  const requestedRoundCount = typeof data.roundCount === 'number' ? data.roundCount : highestRound;
+  const roundCount = Math.max(MIN_ROUNDS, Math.min(MAX_ROUNDS, requestedRoundCount || DEFAULT_ROUNDS));
+
+  if (highestRound > roundCount) {
+    throw new Error(`Invalid file: contains a question for round ${highestRound}, which is past its ${roundCount}-round count.`);
+  }
+
+  // Pad so every round has at least one question
+  for (let round = 1; round <= roundCount; round++) {
+    if (questions.some(q => q.round === round)) continue;
+    const isFinalRound = round === roundCount;
     questions.push({
       id: Date.now() + questions.length,
       round,
       text: '',
       answer: '',
       category: '',
-      type: round === 6 ? 'mcq' : 'text',
-      ...(round === 6 ? { options: ['', '', '', ''] } : {}),
+      type: isFinalRound ? 'mcq' : 'text',
+      ...(isFinalRound ? { options: ['', '', '', ''] } : {}),
     });
   }
+  questions.sort((a, b) => a.round - b.round);
 
   return {
     id: crypto.randomUUID(),
     name: name || 'Imported Pack',
     description,
+    roundCount,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     questions,

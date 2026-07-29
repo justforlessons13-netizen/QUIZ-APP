@@ -39,8 +39,8 @@ export type GamePhase =
   | 'final-standings'
   | 'finished';
 
-export function calculateScore(roundId: number, isCorrect: boolean, isWagered: boolean): number {
-  if (roundId < 6) return isCorrect ? 1 : 0;
+export function calculateScore(isFinalRound: boolean, isCorrect: boolean, isWagered: boolean): number {
+  if (!isFinalRound) return isCorrect ? 1 : 0;
   if (isWagered) return isCorrect ? 2 : -2;
   return isCorrect ? 1 : 0;
 }

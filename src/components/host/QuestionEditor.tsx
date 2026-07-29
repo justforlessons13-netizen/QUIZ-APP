@@ -12,6 +12,7 @@ interface QuestionEditorProps {
   packId: string;
   roundNumber: number;
   questionNumber?: number;
+  isFinalRound?: boolean;
   onChange: (updated: Question) => void;
   onDelete?: () => void;
   canDelete?: boolean;
@@ -28,12 +29,12 @@ export function QuestionEditor({
   packId,
   roundNumber,
   questionNumber,
+  isFinalRound = false,
   onChange,
   onDelete,
   canDelete = false,
 }: QuestionEditorProps) {
   const { uploadMedia, uploading } = useMediaUpload();
-  const isRound6 = roundNumber === 6;
 
   const update = (fields: Partial<Question>) => onChange({ ...question, ...fields });
 
@@ -130,7 +131,7 @@ export function QuestionEditor({
         />
       </div>
 
-      {isRound6 && (
+      {isFinalRound && (
         <div className="flex flex-col gap-1.5">
           <label className="text-[11px]" style={{ color: 'rgba(255,255,255,.5)' }}>Answer Type</label>
           <Select value={question.type} onValueChange={(v: 'text' | 'mcq') => update({ type: v })}>

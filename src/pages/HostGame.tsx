@@ -173,7 +173,8 @@ function LiveGameController({
     ? pack.questions[game.currentQuestionIndex]
     : undefined;
   const currentRoundState = game.rounds.find(r => r.questionIndex === game.currentQuestionIndex);
-  const maxTime = (currentQuestion?.round ?? 1) < 6 ? 45 : 60;
+  const totalRounds = Math.max(...pack.questions.map(q => q.round), 1);
+  const maxTime = (currentQuestion?.round ?? 1) === totalRounds ? 60 : 45;
 
   const questionsInCurrentRound = pack.questions.filter(q => q.round === game.currentRound);
   const questionNumberInRound = currentQuestion
@@ -200,8 +201,6 @@ function LiveGameController({
     currentMediaUrl.includes('.wav') ||
     currentMediaUrl.includes('.mp4') ||
     currentMediaUrl.includes('.webm');
-
-  const totalRounds = Math.max(...pack.questions.map(q => q.round), 1);
 
   // Mirrors advanceFromReveal's own branching (useLiveGame.ts) purely for the Reveal
   // screen's continue-button label — kept in sync manually since the destination phase

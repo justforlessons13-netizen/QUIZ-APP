@@ -217,7 +217,8 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
 
   const myTeam = game.teams.find(t => t.id === teamId);
   const currentQuestion = game.questions[game.currentQuestionIndex];
-  const isFinalRound = currentQuestion?.round === 6;
+  const totalRounds = Math.max(...game.questions.map(q => q.round), 1);
+  const isFinalRound = currentQuestion?.round === totalRounds;
   const isMCQ = currentQuestion?.type === 'mcq' && isFinalRound;
   const isSubmitted = submitState === 'confirmed' || submitState === 'pending';
 

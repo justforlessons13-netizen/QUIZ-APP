@@ -10,6 +10,7 @@ interface AnswerCollectionProps {
   answers: TeamAnswer[];
   question: Question;
   round: number;
+  isFinalRound?: boolean;
   questionInRound?: number;
   totalInRound?: number;
   onUpdateAnswer: (teamId: string, answer: string, isWagered?: boolean) => void;
@@ -17,9 +18,8 @@ interface AnswerCollectionProps {
 }
 
 export function AnswerCollection({
-  teams, answers, question, round, questionInRound = 1, totalInRound = 1, onUpdateAnswer, onNext,
+  teams, answers, question, round, isFinalRound = false, questionInRound = 1, totalInRound = 1, onUpdateAnswer, onNext,
 }: AnswerCollectionProps) {
-  const isFinalRound = round === 6;
   const allAnswered = answers.every(a => a.answer.trim() !== '');
 
   // Logic to determine button text

@@ -61,7 +61,7 @@ export default function GameDemo() {
   const doGrading = useCallback((finalAnswer: string) => {
     const q = sampleQuestions[currentRound - 1];
     const isCorrect = checkAnswer(finalAnswer, q.answer);
-    const points = calculateScore(currentRound, isCorrect, isWagered);
+    const points = calculateScore(currentRound === 6, isCorrect, isWagered);
 
     setTeams(prev => prev.map(team => {
       if (team.isPlayer) {
@@ -70,7 +70,7 @@ export default function GameDemo() {
       // AI teams
       const aiCorrect = Math.random() > 0.4;
       const aiWagered = currentRound === 6 ? Math.random() > 0.5 : false;
-      const aiPoints = calculateScore(currentRound, aiCorrect, aiWagered);
+      const aiPoints = calculateScore(currentRound === 6, aiCorrect, aiWagered);
       return { ...team, score: team.score + aiPoints, roundScores: [...team.roundScores, aiPoints] };
     }));
 

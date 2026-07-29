@@ -386,11 +386,13 @@ export function useLiveGame(
       const currentQ = prev.questions[prev.currentQuestionIndex];
       if (!currentQ) return prev;
 
+      const totalRounds = Math.max(...prev.questions.map((q) => q.round), 1);
+
       const newRounds = prev.rounds.map((r) => {
         if (r.roundNumber !== currentQ.round) return r;
         const q = prev.questions[r.questionIndex];
         const updatedAnswers = r.answers.map((a) => {
-          const points = a.hasCheated ? 0 : calculateScore(q.round, !!a.isCorrect, a.isWagered);
+          const points = a.hasCheated ? 0 : calculateScore(q.round === totalRounds, !!a.isCorrect, a.isWagered);
           return { ...a, pointsAwarded: points };
         });
         return { ...r, answers: updatedAnswers, isGraded: true };
