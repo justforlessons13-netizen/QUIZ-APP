@@ -17,6 +17,7 @@ import { RoundRulesDisplay } from '@/components/host-game/RoundRulesDisplay';
 import { GamePhaseBackground } from '@/components/layout/GamePhaseBackground';
 import { GameAudioController } from '@/components/layout/GameAudioController';
 import { RemoteControlModal } from '@/components/host-game/RemoteControlModal';
+import { RemoteControlPanel } from '@/components/host-game/RemoteControlPanel';
 import { HostLeaderboardModal } from '@/components/host-game/HostLeaderboardModal';
 import { unlockWebAudio } from '@/lib/sounds';
 import { gameThemes, alpha } from '@/lib/game-themes';
@@ -27,11 +28,13 @@ const theme = gameThemes.find((g) => g.id === 'qgame')!;
 function LiveGameController({
   pack,
   sessionId,
-  initialProjectorMode = false
+  initialProjectorMode = false,
+  remoteMode = false
 }: {
   pack: QuestionPack,
   sessionId: string,
-  initialProjectorMode?: boolean
+  initialProjectorMode?: boolean,
+  remoteMode?: boolean
 }) {
   const navigate = useNavigate();
   const [projectorMode, setProjectorMode] = useState(initialProjectorMode);
@@ -211,6 +214,54 @@ function LiveGameController({
       : pack.standingsAfterRound?.[game.currentRound] === false
         ? 'Continue to Next Round'
         : 'See Leaderboard';
+
+  if (remoteMode) {
+    const ADVANCEABLE_PHASES = ['game-rules', 'round-rules', 'question', 'reveal', 'lottery', 'leaderboard'];
+    const handleRemoteNext = () => {
+      switch (game.phase) {
+        case 'game-rules': return advanceToRoundRules();
+        case 'round-rules': return startRound();
+        case 'question': return finishQuestion();
+        case 'reveal': return advanceFromReveal();
+        case 'lottery': return advanceFromLottery();
+        case 'leaderboard': return advanceFromLeaderboard();
+        default: return;
+      }
+    };
+    return (
+      <>
+        <RemoteControlPanel
+          question={currentQuestion ?? null}
+          round={game.currentRound}
+          answeredCount={answeredCount}
+          totalTeams={teamsTotal}
+          displayTime={game.timeLeft}
+          isTimerRunning={game.timerActive}
+          canControlTimer={game.phase === 'question'}
+          onStartTimer={startTimer}
+          onPauseTimer={stopTimer}
+          onNext={handleRemoteNext}
+          canAdvance={ADVANCEABLE_PHASES.includes(game.phase)}
+          onOpenScores={() => setShowLeaderboard(true)}
+          onSkipQuestion={finishQuestion}
+          canSkip={game.phase === 'question'}
+          onOpenLottery={() => setPhase('lottery')}
+          onReplayConfetti={replayWinnerConfetti}
+          onEndGame={() => {
+            if (window.confirm('End the game now?')) setPhase('finished');
+          }}
+        />
+        <HostLeaderboardModal
+          open={showLeaderboard}
+          onOpenChange={setShowLeaderboard}
+          teams={game.teams}
+          currentRound={game.currentRound}
+          totalRounds={totalRounds}
+          onAdjustScore={adjustTeamScore}
+        />
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen relative flex flex-col overflow-hidden">
@@ -552,6 +603,7 @@ export default function HostGame() {
       pack={pack}
       sessionId={sessionId}
       initialProjectorMode={searchParams.get('projector') === 'true'}
+      remoteMode={searchParams.get('remote') === 'true'}
     />
   );
 }
