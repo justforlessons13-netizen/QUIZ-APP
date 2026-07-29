@@ -2,7 +2,7 @@
 // Adds the "called" + "result" screens (see earlier patch notes below), and
 // fixes a stale-display bug: the generic "waiting" fallback used to always
 // show "Up next: {currentPlayer.name}", but currentPlayerId isn't reset when
-// the host moves into round-leaderboard/tie-break/etc — it still points at
+// the host moves into round-leaderboard/champion/etc — it still points at
 // whoever took the *last* turn, even if that player was just eliminated. The
 // device isn't actually re-calling them, it's just stale copy. Now the
 // fallback shows phase-appropriate text instead of naming a stale player.
@@ -233,8 +233,6 @@ export default function BeeStageDevice() {
       ? 'Bee complete'
       : game.phase === 'round-leaderboard'
       ? 'Reviewing round standings'
-      : game.phase === 'tie-break'
-      ? 'Tiebreak in progress'
       : game.phase === 'stage-pairing'
       ? 'Get ready'
       : 'Waiting';

@@ -1,10 +1,19 @@
+export type BeeDifficulty = 'easy' | 'medium' | 'hard';
+export const BEE_DIFFICULTY_TIERS: BeeDifficulty[] = ['easy', 'medium', 'hard'];
+
 export interface BeeWord {
   id: string;
   word: string;
   definition: string;
   exampleSentence?: string;
   partOfSpeech?: string;
-  difficulty?: 'easy' | 'medium' | 'hard'; // stored for future use, not used by v1 gameplay
+  difficulty?: BeeDifficulty;
+}
+
+// Unset words default to 'medium' — keeps packs created before difficulty tiering existed
+// behaving exactly as before (every word in one pool).
+export function wordDifficulty(w: BeeWord): BeeDifficulty {
+  return w.difficulty ?? 'medium';
 }
 
 export interface BeePack {
@@ -38,7 +47,6 @@ export type BeeGamePhase =
   | 'word-cycle'
   | 'result'
   | 'round-leaderboard'
-  | 'tie-break'
   | 'champion'
   | 'finished';
 

@@ -1,8 +1,14 @@
 import { motion } from 'framer-motion';
 import { Trash2 } from 'lucide-react';
-import { BeeWord } from '@/types/bee';
+import { BeeWord, BeeDifficulty } from '@/types/bee';
 
 const GOLD = 'oklch(80% 0.16 92)';
+
+const DIFFICULTIES: { value: BeeDifficulty; label: string; color: string }[] = [
+  { value: 'easy', label: 'Easy', color: 'oklch(70% 0.15 150)' },
+  { value: 'medium', label: 'Medium', color: 'oklch(80% 0.16 92)' },
+  { value: 'hard', label: 'Hard', color: 'oklch(65% 0.2 25)' },
+];
 
 interface BeeWordEditorProps {
   word: BeeWord;
@@ -59,6 +65,28 @@ export function BeeWordEditor({ word, wordNumber, onChange, onDelete, canDelete 
             className="h-9 rounded-lg px-3 text-sm outline-none"
             style={fieldStyle}
           />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[11px]" style={{ color: 'rgba(255,255,255,.5)' }}>
+          Difficulty — earlier rounds draw from Easy first, escalating only once a tier runs low
+        </label>
+        <div className="flex gap-1.5 p-1 rounded-lg" style={{ background: 'rgba(255,255,255,.04)' }}>
+          {DIFFICULTIES.map(d => {
+            const active = (word.difficulty ?? 'medium') === d.value;
+            return (
+              <button
+                key={d.value}
+                type="button"
+                onClick={() => update({ difficulty: d.value })}
+                className="flex-1 text-center py-1.5 rounded-md text-xs font-semibold transition-colors"
+                style={{ background: active ? `${d.color}30` : 'transparent', color: active ? d.color : 'rgba(255,255,255,.5)' }}
+              >
+                {d.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

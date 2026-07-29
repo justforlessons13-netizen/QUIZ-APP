@@ -5,6 +5,9 @@ import {
   BeePlayer,
   BeeWord,
   BeeGamePhase,
+  BeeDifficulty,
+  BEE_DIFFICULTY_TIERS,
+  wordDifficulty,
   createEmptyBeeGameState,
   compareBeePlayers,
 } from '@/types/bee';
@@ -16,6 +19,37 @@ function shuffle<T>(arr: T[]): T[] {
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
   return copy;
+}
+
+// Picks `count` words for a round, fairly: every player in a round must draw from the same
+// difficulty tier, so a tier is only used if it has enough UNUSED words left to cover the whole
+// round. Escalation is monotonic (starts at `minTierIndex`, the tier the previous round locked
+// in) — once a game moves up a tier it never drops back down, even if a later round's smaller
+// player count would technically fit in the leftover easy words again.
+function pickRoundWords(
+  words: BeeWord[],
+  usedIds: Set<string>,
+  count: number,
+  minTierIndex: number
+): { ids: string[]; tier: BeeDifficulty } | null {
+  for (let i = minTierIndex; i < BEE_DIFFICULTY_TIERS.length; i++) {
+    const tier = BEE_DIFFICULTY_TIERS[i];
+    const available = words.filter((w) => wordDifficulty(w) === tier && !usedIds.has(w.id));
+    if (available.length >= count) {
+      return { ids: shuffle(available).slice(0, count).map((w) => w.id), tier };
+    }
+  }
+  return null;
+}
+
+// The tier the most recently appended word belongs to — used as the floor for the next round's
+// tier so difficulty never de-escalates mid-game. Round 1 (empty wordOrder) always starts at easy.
+function currentTierIndex(words: BeeWord[], wordOrder: string[]): number {
+  if (wordOrder.length === 0) return 0;
+  const lastId = wordOrder[wordOrder.length - 1];
+  const lastWord = words.find((w) => w.id === lastId);
+  if (!lastWord) return 0;
+  return BEE_DIFFICULTY_TIERS.indexOf(wordDifficulty(lastWord));
 }
 
 // Orders active players per the fixed roster order, then rotates the start
@@ -123,13 +157,14 @@ export function useBeeGame(
           totalTimeMs: 0,
         }));
         const turnOrder = shuffle(players.map((p) => p.id));
-        const wordOrder = shuffle(words.map((w) => w.id));
 
         return {
           ...prev,
           players,
           turnOrder,
-          wordOrder,
+          // Built incrementally per round (see pickRoundWords) so each round can be locked to a
+          // single, fair difficulty tier instead of one flat shuffle of the whole pack.
+          wordOrder: [],
           currentWordIndex: -1,
           currentPlayerId: null,
           currentRoundQueue: [],
@@ -147,8 +182,12 @@ export function useBeeGame(
       const activePlayers = prev.players.filter((p) => p.status === 'active');
       if (activePlayers.length === 0) return prev;
 
-      if (prev.wordOrder.length < activePlayers.length) {
-        return { ...prev, phase: 'tie-break' };
+      const picked = pickRoundWords(words, new Set(prev.wordOrder), activePlayers.length, 0);
+      if (!picked) {
+        // Out of words before round 1 even starts — nobody has answered anything, so rank by
+        // name for a stable (if arbitrary) result rather than pretending time decided it.
+        const winner = [...activePlayers].sort(compareBeePlayers)[0];
+        return { ...prev, phase: 'champion', currentPlayerId: winner?.id ?? null, lastResult: null };
       }
 
       const queue = buildRoundQueue(activePlayers, prev.turnOrder, 1);
@@ -156,16 +195,17 @@ export function useBeeGame(
 
       return {
         ...prev,
+        wordOrder: [...prev.wordOrder, ...picked.ids],
         currentRoundQueue: rest,
         currentPlayerId: firstId ?? null,
-        currentWordIndex: 0,
+        currentWordIndex: prev.wordOrder.length,
         currentRound: 1,
         hintsUsedThisTurn: [],
         lastResult: null,
         phase: 'turn-intro',
       };
     });
-  }, []);
+  }, [words]);
 
   const revealWord = useCallback(() => {
     setGame((prev) =>
@@ -246,24 +286,33 @@ export function useBeeGame(
     });
   }, []);
 
+  // Swaps the current word for a fresh, unused one from the SAME difficulty tier — in place,
+  // rather than advancing to a later slot, so it can't accidentally borrow a word reserved for
+  // a future round's fairness guarantee.
   const substituteWord = useCallback(() => {
     setGame((prev) => {
       if (prev.phase !== 'word-cycle') return prev;
-      let nextWordIndex = prev.currentWordIndex + 1;
-      let nextWordOrder = prev.wordOrder;
-      if (nextWordIndex >= prev.wordOrder.length) {
-        nextWordOrder = shuffle(prev.wordOrder);
-        nextWordIndex = 0;
-      }
+      const currentId = prev.wordOrder[prev.currentWordIndex];
+      const currentWord = words.find((w) => w.id === currentId);
+      if (!currentWord) return prev;
+
+      const usedIds = new Set(prev.wordOrder);
+      const tier = wordDifficulty(currentWord);
+      const candidates = words.filter((w) => wordDifficulty(w) === tier && !usedIds.has(w.id));
+      if (candidates.length === 0) return prev; // no same-tier replacement left — keep current word
+
+      const replacement = shuffle(candidates)[0];
+      const wordOrder = [...prev.wordOrder];
+      wordOrder[prev.currentWordIndex] = replacement.id;
+
       return {
         ...prev,
-        currentWordIndex: nextWordIndex,
-        wordOrder: nextWordOrder,
+        wordOrder,
         hintsUsedThisTurn: [],
         wordRevealedAt: Date.now(), // fresh word, fresh stopwatch
       };
     });
-  }, []);
+  }, [words]);
 
   // Advances within the current round's queue; when it's empty, checkpoints at the leaderboard.
   const callNextPlayer = useCallback(() => {
@@ -301,9 +350,14 @@ export function useBeeGame(
         return { ...prev, phase: 'champion', currentPlayerId: activePlayers[0]?.id ?? null, lastResult: null };
       }
 
-      const freshWordsRemaining = prev.wordOrder.length - (prev.currentWordIndex + 1);
-      if (freshWordsRemaining < activePlayers.length) {
-        return { ...prev, phase: 'tie-break' };
+      const minTier = currentTierIndex(words, prev.wordOrder);
+      const picked = pickRoundWords(words, new Set(prev.wordOrder), activePlayers.length, minTier);
+      if (!picked) {
+        // Out of words for everyone still standing — the host never picks a winner here.
+        // Nobody is eliminated: they all stay 'active' so the final reveal shows each of their
+        // actual total times (see BeeStandings' timeLabel) instead of "Eliminated", and
+        // compareBeePlayers' own time tiebreak ranks the fastest total time in first.
+        return { ...prev, phase: 'champion', currentPlayerId: [...activePlayers].sort(compareBeePlayers)[0]?.id ?? null, lastResult: null, previousRankMap };
       }
 
       const nextRound = prev.currentRound + 1;
@@ -312,9 +366,10 @@ export function useBeeGame(
 
       return {
         ...prev,
+        wordOrder: [...prev.wordOrder, ...picked.ids],
         currentRoundQueue: rest,
         currentPlayerId: firstId ?? null,
-        currentWordIndex: prev.currentWordIndex + 1,
+        currentWordIndex: prev.wordOrder.length,
         currentRound: nextRound,
         hintsUsedThisTurn: [],
         lastResult: null,
@@ -322,37 +377,11 @@ export function useBeeGame(
         phase: 'turn-intro',
       };
     });
-  }, []);
-
-  // Repeatable from the tie-break screen — eliminates the slowest active player by cumulative time
-  const eliminateSlowest = useCallback(() => {
-    setGame((prev) => {
-      if (prev.phase !== 'tie-break') return prev;
-      const activePlayers = prev.players.filter((p) => p.status === 'active');
-      if (activePlayers.length <= 1) {
-        return { ...prev, phase: 'champion', currentPlayerId: activePlayers[0]?.id ?? null };
-      }
-
-      const slowest = activePlayers.reduce((a, b) => (b.totalTimeMs > a.totalTimeMs ? b : a));
-      const players = prev.players.map((p) =>
-        p.id === slowest.id
-          ? { ...p, status: 'eliminated' as const, eliminatedAtRound: prev.currentRound, eliminatedOnWordId: null }
-          : p
-      );
-      const remaining = players.filter((p) => p.status === 'active');
-
-      return {
-        ...prev,
-        players,
-        phase: remaining.length <= 1 ? 'champion' : 'tie-break',
-        currentPlayerId: remaining.length <= 1 ? remaining[0]?.id ?? null : prev.currentPlayerId,
-      };
-    });
-  }, []);
+  }, [words]);
 
   const endGameEarly = useCallback(() => {
     setGame((prev) =>
-      ['turn-intro', 'word-cycle', 'result', 'round-leaderboard', 'tie-break'].includes(prev.phase)
+      ['turn-intro', 'word-cycle', 'result', 'round-leaderboard'].includes(prev.phase)
         ? { ...prev, phase: 'champion', lastResult: null }
         : prev
     );
@@ -382,7 +411,6 @@ export function useBeeGame(
     substituteWord,
     callNextPlayer,
     startNextRound,
-    eliminateSlowest,
     endGameEarly,
     resetGame,
     setPhase,

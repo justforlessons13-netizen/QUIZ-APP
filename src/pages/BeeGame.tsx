@@ -14,10 +14,9 @@ import { BeeTurnIntro } from '@/components/bee-game/BeeTurnIntro';
 import { BeeWordCycle } from '@/components/bee-game/BeeWordCycle';
 import { BeeResultScreen } from '@/components/bee-game/BeeResultScreen';
 import { BeeLeaderboard } from '@/components/bee-game/BeeLeaderboard';
-import { BeeTieBreak } from '@/components/bee-game/BeeTieBreak';
 import { BeeStandings } from '@/components/bee-game/BeeStandings';
 
-const EARLY_EXIT_PHASES = ['turn-intro', 'word-cycle', 'result', 'round-leaderboard', 'tie-break'];
+const EARLY_EXIT_PHASES = ['turn-intro', 'word-cycle', 'result', 'round-leaderboard'];
 
 function BeeGameController({ pack, sessionId, ownerId }: { pack: BeePack; sessionId: string; ownerId?: string }) {
   const navigate = useNavigate();
@@ -34,7 +33,6 @@ function BeeGameController({ pack, sessionId, ownerId }: { pack: BeePack; sessio
     substituteWord,
     callNextPlayer,
     startNextRound,
-    eliminateSlowest,
     endGameEarly,
     resetGame,
   } = useBeeGame(sessionId, pack.id, pack.name, pack.words, ownerId);
@@ -197,14 +195,6 @@ function BeeGameController({ pack, sessionId, ownerId }: { pack: BeePack; sessio
               round={game.currentRound}
               previousRankMap={game.previousRankMap}
               onNextRound={startNextRound}
-            />
-          )}
-
-          {game.phase === 'tie-break' && (
-            <BeeTieBreak
-              key="tie-break"
-              players={game.players}
-              onEliminateSlowest={eliminateSlowest}
             />
           )}
 

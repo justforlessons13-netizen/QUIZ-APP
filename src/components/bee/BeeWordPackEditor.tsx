@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Save, RotateCcw, Plus } from 'lucide-react';
-import { BeePack, BeeWord, createEmptyWord } from '@/types/bee';
+import { BeePack, BeeWord, createEmptyWord, BEE_DIFFICULTY_TIERS, wordDifficulty } from '@/types/bee';
 import { BeeWordEditor } from './BeeWordEditor';
 import { toast } from '@/hooks/use-toast';
 import { User } from 'firebase/auth';
@@ -180,6 +180,20 @@ export function BeeWordPackEditor({ pack, onSave, onBack, isNew = false, user }:
               <div key={w.id} className="h-1.5 flex-1 rounded-full" style={{ background: w.word.trim() && w.definition.trim() ? 'oklch(70% 0.15 150)' : 'rgba(255,255,255,.15)' }} />
             ))}
             {draft.words.length === 0 && <div className="h-1.5 flex-1 rounded-full" style={{ background: 'oklch(63% 0.2 25 / .4)' }} />}
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px]" style={{ color: 'rgba(255,255,255,.5)' }}>
+            {BEE_DIFFICULTY_TIERS.map(tier => {
+              const count = draft.words.filter(w => wordDifficulty(w) === tier).length;
+              return (
+                <span key={tier} className="capitalize">
+                  {tier}: <span style={{ color: '#fff', fontWeight: 600 }}>{count}</span>
+                </span>
+              );
+            })}
+            <span>
+              Each round needs at least as many words in its tier as remaining players — add more Easy
+              words if you expect several rounds to play out before eliminations start.
+            </span>
           </div>
         </motion.div>
 
