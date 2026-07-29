@@ -6,7 +6,7 @@ import { User } from 'firebase/auth';
 import { QuestionPack } from '@/types/host';
 import { exportPackAsJson, readJsonFile, parseImportedPack } from '@/lib/pack-io';
 import { toast } from '@/hooks/use-toast';
-import { gameThemes } from '@/lib/game-themes';
+import { gameThemes, alpha } from '@/lib/game-themes';
 
 const theme = gameThemes.find((g) => g.id === 'qgame')!;
 
@@ -27,7 +27,6 @@ export function QuestionPackList({ packs, onEdit, onDelete, onDuplicate, onStart
   const [selectedPack, setSelectedPack] = useState<QuestionPack | null>(null);
 
   const handleStartPack = (pack: QuestionPack) => {
-    // If not logged in and pack has a password, prompt for it
     if (!user && pack.packPassword) {
       setSelectedPack(pack);
       setPasswordInput('');
@@ -68,29 +67,30 @@ export function QuestionPackList({ packs, onEdit, onDelete, onDuplicate, onStart
       });
     }
 
-    // Reset input so the same file can be re-imported
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
+
+  const ImportButton = user && (
+    <div className="flex justify-end mb-4">
+      <Button variant="secondary" size="sm" onClick={handleImportClick}>
+        <Upload className="w-4 h-4 mr-1" /> Import JSON
+      </Button>
+      <input ref={fileInputRef} type="file" accept=".json" onChange={handleFileChange} className="hidden" />
+    </div>
+  );
 
   if (packs.length === 0) {
     return (
       <div>
-        {user && (
-          <div className="flex justify-end mb-4">
-            <Button variant="secondary" size="sm" onClick={handleImportClick}>
-              <Upload className="w-4 h-4 mr-1" /> Import JSON
-            </Button>
-            <input ref={fileInputRef} type="file" accept=".json" onChange={handleFileChange} className="hidden" />
-          </div>
-        )}
+        {ImportButton}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="flex flex-col items-center justify-center py-16 text-center"
         >
-          <FileText className="w-12 h-12 mb-4" style={{ color: 'oklch(30% 0.02 195)', opacity: 0.3 }} />
-          <h3 className="text-lg font-semibold" style={{ color: 'oklch(24% 0.04 195)' }}>No question packs yet</h3>
-          <p className="text-sm mt-1" style={{ color: 'oklch(52% 0.02 195)' }}>
+          <FileText className="w-12 h-12 mb-4" style={{ color: 'rgba(255,255,255,.25)' }} />
+          <h3 className="text-lg font-semibold text-white">No question packs yet</h3>
+          <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,.5)' }}>
             Create your first question pack or import one from a JSON file.
           </p>
         </motion.div>
@@ -100,14 +100,7 @@ export function QuestionPackList({ packs, onEdit, onDelete, onDuplicate, onStart
 
   return (
     <div>
-      {user && (
-        <div className="flex justify-end mb-4">
-          <Button variant="secondary" size="sm" onClick={handleImportClick}>
-            <Upload className="w-4 h-4 mr-1" /> Import JSON
-          </Button>
-          <input ref={fileInputRef} type="file" accept=".json" onChange={handleFileChange} className="hidden" />
-        </div>
-      )}
+      {ImportButton}
 
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {packs.map((pack, i) => {
@@ -123,14 +116,14 @@ export function QuestionPackList({ packs, onEdit, onDelete, onDuplicate, onStart
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="rounded-[14px] overflow-hidden bg-white"
-              style={{ border: '1px solid oklch(88% 0.015 195)', boxShadow: '0 2px 8px rgba(0,0,0,.04)' }}
+              className="rounded-[14px] overflow-hidden"
+              style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)' }}
             >
               <div
                 className="h-[88px] flex items-center justify-center relative"
-                style={{ background: locked ? 'oklch(80% 0.01 195)' : theme.color1 }}
+                style={{ background: locked ? 'rgba(255,255,255,.08)' : theme.color1 }}
               >
-                <span className="font-bungee text-[34px]" style={{ color: locked ? 'oklch(55% 0.01 195)' : theme.onColor1 }}>
+                <span className="font-bungee text-[34px]" style={{ color: locked ? 'rgba(255,255,255,.4)' : theme.onColor1 }}>
                   {(pack.name || '?').trim().charAt(0).toUpperCase()}
                 </span>
                 {pack.packPassword && (
@@ -140,10 +133,10 @@ export function QuestionPackList({ packs, onEdit, onDelete, onDuplicate, onStart
                 )}
               </div>
               <div className="p-4">
-                <div className="font-bold text-[14.5px] truncate mb-1" style={{ color: 'oklch(24% 0.04 195)' }}>
+                <div className="font-bold text-[14.5px] truncate mb-1 text-white">
                   {pack.name || 'Untitled Pack'}
                 </div>
-                <p className="text-xs mb-3.5" style={{ color: 'oklch(52% 0.02 195)' }}>
+                <p className="text-xs mb-3.5" style={{ color: 'rgba(255,255,255,.5)' }}>
                   {totalRounds} rounds · {totalCount} questions
                 </p>
 
@@ -152,7 +145,7 @@ export function QuestionPackList({ packs, onEdit, onDelete, onDuplicate, onStart
                     onClick={() => handleStartPack(pack)}
                     disabled={!isReady}
                     className="flex-1 flex items-center justify-center font-semibold text-[13px] rounded-[7px] py-2.5 transition-[filter] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ background: locked ? 'oklch(93% 0.01 195)' : theme.color1, color: locked ? 'oklch(35% 0.02 195)' : theme.onColor1 }}
+                    style={{ background: locked ? 'rgba(255,255,255,.08)' : theme.color1, color: locked ? '#fff' : theme.onColor1 }}
                   >
                     {locked ? 'Unlock & host' : 'Host'}
                   </button>
@@ -160,30 +153,30 @@ export function QuestionPackList({ packs, onEdit, onDelete, onDuplicate, onStart
                     <>
                       <button
                         onClick={() => onEdit(pack)}
-                        className="h-9 w-9 flex-shrink-0 rounded-[7px] flex items-center justify-center transition-colors hover:bg-black/5"
-                        style={{ background: 'oklch(94% 0.01 195)', color: 'oklch(30% 0.02 195)' }}
+                        className="h-9 w-9 flex-shrink-0 rounded-[7px] flex items-center justify-center transition-colors hover:bg-white/10"
+                        style={{ background: 'rgba(255,255,255,.06)', color: '#fff' }}
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => exportPackAsJson(pack)}
                         title="Export as JSON"
-                        className="h-9 w-9 flex-shrink-0 rounded-[7px] flex items-center justify-center transition-colors hover:bg-black/5"
-                        style={{ background: 'oklch(94% 0.01 195)', color: 'oklch(30% 0.02 195)' }}
+                        className="h-9 w-9 flex-shrink-0 rounded-[7px] flex items-center justify-center transition-colors hover:bg-white/10"
+                        style={{ background: 'rgba(255,255,255,.06)', color: '#fff' }}
                       >
                         <Download className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => onDuplicate(pack.id)}
-                        className="h-9 w-9 flex-shrink-0 rounded-[7px] flex items-center justify-center transition-colors hover:bg-black/5"
-                        style={{ background: 'oklch(94% 0.01 195)', color: 'oklch(30% 0.02 195)' }}
+                        className="h-9 w-9 flex-shrink-0 rounded-[7px] flex items-center justify-center transition-colors hover:bg-white/10"
+                        style={{ background: 'rgba(255,255,255,.06)', color: '#fff' }}
                       >
                         <Copy className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => onDelete(pack.id)}
-                        className="h-9 w-9 flex-shrink-0 rounded-[7px] flex items-center justify-center transition-colors hover:bg-red-50"
-                        style={{ background: 'oklch(94% 0.01 195)', color: 'oklch(58% 0.2 25)' }}
+                        className="h-9 w-9 flex-shrink-0 rounded-[7px] flex items-center justify-center transition-colors hover:bg-red-500/10"
+                        style={{ background: 'rgba(255,255,255,.06)', color: 'oklch(65% 0.2 25)' }}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -196,25 +189,22 @@ export function QuestionPackList({ packs, onEdit, onDelete, onDuplicate, onStart
         })}
       </div>
 
-      {/* Password Dialog */}
       {passwordDialogOpen && (
         <div
           className="fixed inset-0 flex items-center justify-center z-[100]"
-          style={{ background: 'rgba(20,25,30,.5)' }}
+          style={{ background: 'rgba(0,0,0,.6)' }}
           onClick={() => setPasswordDialogOpen(false)}
         >
           <div
-            className="w-[360px] bg-white rounded-[14px] p-7"
-            style={{ boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}
+            className="w-[360px] rounded-[14px] p-7"
+            style={{ background: 'oklch(17% 0.015 290)', border: `1px solid ${alpha(theme.color1, 0.3)}`, boxShadow: '0 20px 60px rgba(0,0,0,.4)' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2.5 mb-1.5">
-              <Lock className="w-4 h-4" style={{ color: 'oklch(28% 0.06 195)' }} />
-              <div className="font-bungee text-sm uppercase" style={{ color: 'oklch(28% 0.06 195)' }}>
-                Protected pack
-              </div>
+              <Lock className="w-4 h-4" style={{ color: theme.color1 }} />
+              <div className="font-bungee text-sm uppercase text-white">Protected pack</div>
             </div>
-            <p className="text-[13px] leading-relaxed mb-[18px]" style={{ color: 'oklch(45% 0.02 195)' }}>
+            <p className="text-[13px] leading-relaxed mb-[18px]" style={{ color: 'rgba(255,255,255,.6)' }}>
               Enter the password to open "{selectedPack?.name}".
             </p>
             <form onSubmit={handlePasswordSubmit}>
@@ -225,15 +215,15 @@ export function QuestionPackList({ packs, onEdit, onDelete, onDuplicate, onStart
                 onChange={(e) => setPasswordInput(e.target.value)}
                 autoFocus
                 maxLength={8}
-                className="w-full box-border text-center text-2xl tracking-[.3em] rounded-lg py-3.5"
-                style={{ border: '1.5px solid oklch(80% 0.02 195)', color: 'oklch(28% 0.06 195)' }}
+                className="w-full box-border text-center text-2xl tracking-[.3em] rounded-lg py-3.5 outline-none"
+                style={{ background: 'rgba(255,255,255,.06)', border: '1.5px solid rgba(255,255,255,.15)', color: '#fff' }}
               />
               <div className="flex gap-2.5 mt-5">
                 <button
                   type="button"
                   onClick={() => setPasswordDialogOpen(false)}
                   className="flex-1 font-bungee uppercase text-xs py-3 rounded-[7px]"
-                  style={{ background: 'transparent', color: 'oklch(30% 0.02 195)', border: '1.5px solid oklch(30% 0.02 195 / .2)' }}
+                  style={{ background: 'transparent', color: '#fff', border: '1.5px solid rgba(255,255,255,.2)' }}
                 >
                   Cancel
                 </button>
