@@ -155,9 +155,9 @@ export function QuestionDisplay({
   const shouldLoop = maxTime <= 45;
   const hasOptions = question.type === 'mcq' && !!question.options?.length;
 
-  const defaultFontSize = 30;
+  const defaultFontSize = projectorMode ? 52 : 32;
 
-  useAutoFitText(textRef, textContainerRef, question.text, defaultFontSize, 22);
+  useAutoFitText(textRef, textContainerRef, question.text, defaultFontSize, projectorMode ? 32 : 22);
 
   useEffect(() => {
     if (timerActive || timeLeft < maxTime) setIsActivated(true);

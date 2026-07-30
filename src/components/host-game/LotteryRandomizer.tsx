@@ -17,7 +17,7 @@ interface LotteryRandomizerProps {
     currentDrawnNumber: number | null;
     history: number[];
     confettiPlays: number;
-  };
+  } | null;
   projectorMode: boolean;
   onInitialize: (min: number, max: number) => void;
   onDraw: () => void;

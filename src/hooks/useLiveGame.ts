@@ -17,6 +17,7 @@ function advanceToNextQuestion(prev: LiveGameState): LiveGameState {
       currentRound: nextQ.round,
       phase: 'round-rules',
       timerActive: false,
+      roundRulesIndex: 0,
     };
   }
 
@@ -87,7 +88,13 @@ export function useLiveGame(
   packName: string,
   questions: Question[],
   lotteryAfterRound?: Record<number, boolean>,
-  standingsAfterRound?: Record<number, boolean>
+  standingsAfterRound?: Record<number, boolean>,
+  // Only one browser context per session may run the countdown — a popup projector window and
+  // a remote-control phone both mount their own useLiveGame instance, and if each ran its own
+  // setInterval decrementing timeLeft, they'd race each other writing to Firestore every second,
+  // producing a visibly "jumping" countdown on every screen. Non-authoritative instances just
+  // display game.timeLeft/timerActive as received; they never decrement or write it themselves.
+  isAuthoritative: boolean = true
 ) {
   const [game, setGame] = useState<LiveGameState>(() => createLiveGame(sessionId, packId, packName, questions));
   const [loading, setLoading] = useState(true);
@@ -139,8 +146,9 @@ export function useLiveGame(
     }
   }, [game, loading, sessionId]);
 
-  // Timer
+  // Timer — only the authoritative instance decrements/persists it (see param comment above).
   useEffect(() => {
+    if (!isAuthoritative) return;
     if (game.timerActive && game.timeLeft > 0) {
       timerRef.current = setInterval(() => {
         setGame((prev) => {
@@ -154,7 +162,7 @@ export function useLiveGame(
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [game.timerActive]);
+  }, [game.timerActive, isAuthoritative]);
 
   const addTeam = useCallback((name: string, emoji?: string) => {
     setGame((prev) => {
@@ -196,6 +204,7 @@ export function useLiveGame(
       ...prev,
       phase: 'round-rules',
       currentRound: 1,
+      roundRulesIndex: 0,
     }));
   }, []);
 
@@ -448,7 +457,9 @@ export function useLiveGame(
       if (lotteryAfterRound?.[currentQ.round]) {
         // Always start a lottery round from a clean slate — a leftover pool/history from an
         // earlier round in the same game must never carry over into this one.
-        return { ...prev, phase: 'lottery', lotteryState: undefined };
+        // null, not undefined — Firestore's updateDoc throws synchronously (crashing the host's
+        // render, not just failing async) on any field value of undefined.
+        return { ...prev, phase: 'lottery', lotteryState: null };
       }
 
       // No explicit entry defaults to shown, matching pre-existing packs' always-on behavior.
@@ -577,6 +588,10 @@ export function useLiveGame(
     setGame((prev) => ({ ...prev, currentRuleIndex: index }));
   }, []);
 
+  const updateRoundRulesIndex = useCallback((index: number) => {
+    setGame((prev) => ({ ...prev, roundRulesIndex: index }));
+  }, []);
+
   const updateRoundStepIndex = useCallback((index: number) => {
     setGame((prev) => ({ ...prev, roundStepIndex: index }));
   }, []);
@@ -609,6 +624,7 @@ export function useLiveGame(
     resetGame,
     updateRevealStep,
     updateRuleIndex,
+    updateRoundRulesIndex,
     updateRoundStepIndex,
   };
 }

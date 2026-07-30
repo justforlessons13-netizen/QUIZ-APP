@@ -124,6 +124,7 @@ function LiveGameController({
     resetGame,
     updateRevealStep,
     updateRuleIndex,
+    updateRoundRulesIndex,
     updateRoundStepIndex,
     adjustTeamScore,
   } = useLiveGame(
@@ -132,7 +133,11 @@ function LiveGameController({
     pack.name,
     pack.questions,
     pack.lotteryAfterRound,
-    pack.standingsAfterRound
+    pack.standingsAfterRound,
+    // The popup projector window and the phone's remote-control view are separate browser
+    // contexts, each mounting their own useLiveGame — only the primary host tab should drive
+    // the countdown (see useLiveGame's isAuthoritative param for why).
+    !initialProjectorMode && !remoteMode
   );
 
   const gameCode = game.gameCode;
@@ -364,6 +369,8 @@ function LiveGameController({
               rules={pack.roundRules?.[game.currentRound]}
               projectorMode={projectorMode}
               onStartRound={startRound}
+              ruleIndex={game.roundRulesIndex ?? 0}
+              onSetRuleIndex={updateRoundRulesIndex}
             />
           )}
 

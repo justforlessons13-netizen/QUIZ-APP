@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { gameThemes, alpha } from '@/lib/game-themes';
 
 const theme = gameThemes.find((g) => g.id === 'qgame')!;
@@ -11,6 +11,8 @@ interface RoundRulesDisplayProps {
   rules?: string;
   projectorMode?: boolean;
   onStartRound: () => void;
+  ruleIndex: number;
+  onSetRuleIndex: (index: number) => void;
 }
 
 const scopedCSS = `
@@ -47,23 +49,20 @@ const scopedCSS = `
 }
 `;
 
-export function RoundRulesDisplay({ round, totalRounds, roundName, rules, projectorMode, onStartRound }: RoundRulesDisplayProps) {
+export function RoundRulesDisplay({ round, totalRounds, roundName, rules, projectorMode, onStartRound, ruleIndex, onSetRuleIndex }: RoundRulesDisplayProps) {
   const displayRules = rules && rules.trim().length > 0
     ? rules.split('\n').map(r => r.trim()).filter(r => r !== '')
     : ["NO PHONES ALLOWED", "DO NOT SHOUT", "WRITE CLEARLY"];
 
-  const [index, setIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
   const total = displayRules.length;
+  const index = Math.min(ruleIndex, total - 1);
   const isFirst = index === 0;
   const isLast = index === total - 1;
 
-  // Reset to the first card whenever a new round's rules load in
-  useEffect(() => { setIndex(0); }, [rules, round]);
-
   const goTo = useCallback((i: number) => {
-    if (i >= 0 && i < total) setIndex(i);
-  }, [total]);
+    if (i >= 0 && i < total) onSetRuleIndex(i);
+  }, [total, onSetRuleIndex]);
 
   const handleNext = useCallback(() => { if (!isLast) goTo(index + 1); }, [isLast, index, goTo]);
   const handlePrev = useCallback(() => { if (!isFirst) goTo(index - 1); }, [isFirst, index, goTo]);

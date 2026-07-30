@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Users } from 'lucide-react';
+import { Play, Users, X } from 'lucide-react';
 import { LiveTeam } from '@/types/live-game';
 import { QRCodeSVG } from 'qrcode.react';
 import { Emoji3D } from '@/components/ui/Emoji3D';
@@ -183,8 +183,15 @@ export function TeamSetup({ teams, onAddTeam, onRemoveTeam, onStart, gameCode, p
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.3, opacity: 0 }}
                     transition={{ type: 'spring', stiffness: 400, damping: 22 }}
-                    className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-2xl flex flex-col items-center justify-center gap-1 relative shadow-xl w-[76px] py-3 px-1.5"
+                    className="group bg-black/40 backdrop-blur-sm border border-white/10 rounded-2xl flex flex-col items-center justify-center gap-1 relative shadow-xl w-[76px] py-3 px-1.5"
                   >
+                    <button
+                      onClick={() => onRemoveTeam(team.id)}
+                      title={`Remove ${team.name}`}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/70 border border-white/20 flex items-center justify-center text-white/70 opacity-0 group-hover:opacity-100 hover:text-white hover:bg-red-500/80 transition-all"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
                     <div
                       className="leading-none animate-bob text-[30px]"
                       style={{ animationDelay: `${(i % 5) * 0.35}s` }}

@@ -423,7 +423,7 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
 
         {/* Scrollable middle */}
         <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6 md:px-10 py-6 overflow-auto min-h-0 max-w-2xl mx-auto w-full">
-          <h2 className="text-lg md:text-xl font-bold text-center leading-tight text-foreground max-w-xl">
+          <h2 className="text-2xl md:text-3xl font-bold text-center leading-tight text-foreground max-w-xl">
             {currentQuestion.text}
           </h2>
 
