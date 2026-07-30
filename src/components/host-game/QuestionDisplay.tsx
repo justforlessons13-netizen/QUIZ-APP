@@ -155,6 +155,26 @@ export function QuestionDisplay({
   const shouldLoop = maxTime <= 45;
   const hasOptions = question.type === 'mcq' && !!question.options?.length;
 
+  const optionsGrid = hasOptions && (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
+      {question.options!.map((opt, i) => (
+        <div
+          key={i}
+          className="flex items-center gap-3 rounded-xl px-5 py-4 text-left text-[17px] font-semibold text-white/90"
+          style={{ background: '#13131f', border: `1px solid ${alpha(theme.color1, 0.3)}` }}
+        >
+          <span
+            className="w-7 h-7 rounded-full flex items-center justify-center text-[13px] font-extrabold flex-shrink-0"
+            style={{ background: alpha(theme.color1, 0.25), color: theme.color1 }}
+          >
+            {String.fromCharCode(65 + i)}
+          </span>
+          {opt}
+        </div>
+      ))}
+    </div>
+  );
+
   const defaultFontSize = projectorMode ? 52 : 32;
 
   useAutoFitText(textRef, textContainerRef, question.text, defaultFontSize, projectorMode ? 32 : 22);
@@ -271,25 +291,7 @@ export function QuestionDisplay({
             </h2>
           </div>
 
-          {hasOptions && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
-              {question.options!.map((opt, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 rounded-xl px-5 py-4 text-left text-[17px] font-semibold text-white/90"
-                  style={{ background: '#13131f', border: `1px solid ${alpha(theme.color1, 0.3)}` }}
-                >
-                  <span
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-[13px] font-extrabold flex-shrink-0"
-                    style={{ background: alpha(theme.color1, 0.25), color: theme.color1 }}
-                  >
-                    {String.fromCharCode(65 + i)}
-                  </span>
-                  {opt}
-                </div>
-              ))}
-            </div>
-          )}
+          {optionsGrid}
         </div>
       )}
 
@@ -319,6 +321,7 @@ export function QuestionDisplay({
             </motion.div>
           </div>
           <audio ref={audioRef} src={question.mediaUrl} loop={shouldLoop} />
+          {hasOptions && <div className="flex-none w-full flex justify-center pt-4">{optionsGrid}</div>}
         </>
       )}
 
@@ -354,6 +357,7 @@ export function QuestionDisplay({
               <img src={question.mediaUrl} alt="Visual clue" className="w-full h-full object-contain" style={{ maxHeight: projectorMode ? '62vh' : '45vh' }} />
             </motion.div>
           </div>
+          {hasOptions && <div className="flex-none w-full flex justify-center pt-4">{optionsGrid}</div>}
         </>
       )}
 
@@ -389,6 +393,7 @@ export function QuestionDisplay({
               <video ref={videoRef} src={question.mediaUrl} loop={shouldLoop} playsInline className="w-full h-full object-contain" style={{ maxHeight: projectorMode ? '62vh' : '45vh' }} />
             </motion.div>
           </div>
+          {hasOptions && <div className="flex-none w-full flex justify-center pt-4">{optionsGrid}</div>}
         </>
       )}
 
