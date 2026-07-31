@@ -25,6 +25,11 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
   const [submitState, setSubmitState] = useState<'idle' | 'pending' | 'confirmed' | 'failed'>('idle');
   const submittedAnswerRef = useRef<string>('');
   const submitInFlight = useRef(false);
+  // Distinguishes a real submission from the anti-cheat tab-switch flag below — both land on
+  // submitState 'confirmed', but a tab going hidden (backgrounding, a notification banner, the
+  // OS app switcher — all common on a tablet) shouldn't tell the player "Answer Locked In!" when
+  // no answer was actually sent and their round was blanked out.
+  const [awayFlagged, setAwayFlagged] = useState(false);
 
   const [lastQuestionIndex, setLastQuestionIndex] = useState(-1);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -86,48 +91,69 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
   }, []);
 
   // ── Anti-cheat: tab-switch detection ─────────────────────────────────────
+  // Waits for the tab to stay hidden for a bit before flagging, rather than firing on the very
+  // first visibilitychange event — a notification banner, the OS app switcher, or a brief
+  // accidental swipe (all common on a tablet) shouldn't blank a team's answer and flag them as
+  // having cheated over a momentary, involuntary tab hide.
   useEffect(() => {
-    const handleVisibilityChange = async () => {
+    const AWAY_GRACE_MS = 2500;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const flagAsAway = async () => {
+      const db = getFirestore();
+      const gameRef = doc(db, 'games', sessionId);
+      try {
+        await runTransaction(db, async (transaction) => {
+          const gameDoc = await transaction.get(gameRef);
+          if (!gameDoc.exists()) return;
+          const data = gameDoc.data() as LiveGameState;
+          const roundIdx = data.rounds.findIndex(
+            r => r.questionIndex === data.currentQuestionIndex
+          );
+          if (roundIdx === -1) return;
+          const newRounds = [...data.rounds];
+          const round = { ...newRounds[roundIdx] };
+          const exists = round.answers.some(a => a.teamId === teamId);
+          round.answers = exists
+            ? round.answers.map(a =>
+              a.teamId === teamId
+                ? { ...a, hasCheated: true, isCorrect: false, pointsAwarded: 0 }
+                : a
+            )
+            : [
+              ...round.answers,
+              { teamId, answer: '', hasCheated: true, isCorrect: false, isWagered: false, pointsAwarded: 0 },
+            ];
+          newRounds[roundIdx] = round;
+          transaction.update(gameRef, { rounds: newRounds });
+        });
+        setAwayFlagged(true);
+        setSubmitState('confirmed');
+      } catch (err) {
+        console.error('Anti-cheat flag failed:', err);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
       if (
         document.visibilityState === 'hidden' &&
         game?.phase === 'question' &&
         submitState === 'idle'
       ) {
-        const db = getFirestore();
-        const gameRef = doc(db, 'games', sessionId);
-        try {
-          await runTransaction(db, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) return;
-            const data = gameDoc.data() as LiveGameState;
-            const roundIdx = data.rounds.findIndex(
-              r => r.questionIndex === data.currentQuestionIndex
-            );
-            if (roundIdx === -1) return;
-            const newRounds = [...data.rounds];
-            const round = { ...newRounds[roundIdx] };
-            const exists = round.answers.some(a => a.teamId === teamId);
-            round.answers = exists
-              ? round.answers.map(a =>
-                a.teamId === teamId
-                  ? { ...a, hasCheated: true, isCorrect: false, pointsAwarded: 0 }
-                  : a
-              )
-              : [
-                ...round.answers,
-                { teamId, answer: '', hasCheated: true, isCorrect: false, isWagered: false, pointsAwarded: 0 },
-              ];
-            newRounds[roundIdx] = round;
-            transaction.update(gameRef, { rounds: newRounds });
-          });
-          setSubmitState('confirmed');
-        } catch (err) {
-          console.error('Anti-cheat flag failed:', err);
-        }
+        timer = setTimeout(() => {
+          if (document.visibilityState === 'hidden') flagAsAway();
+        }, AWAY_GRACE_MS);
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (timer) clearTimeout(timer);
+    };
   }, [game?.phase, game?.currentQuestionIndex, sessionId, teamId, submitState]);
 
   // ── Reset when question changes ───────────────────────────────────────────
@@ -137,6 +163,7 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
       setMyAnswer('');
       setMyWager(false);
       setSubmitState('idle');
+      setAwayFlagged(false);
       submittedAnswerRef.current = '';
       submitInFlight.current = false;
       setLightboxOpen(false);
@@ -553,11 +580,23 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
             {isSubmitted ? (
               <motion.div key="submitted" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                 className="flex flex-col items-center gap-3 p-6 rounded-xl w-full max-w-md"
-                style={{ background: submitState === 'pending' ? 'hsl(var(--primary) / 0.06)' : 'hsl(var(--primary) / 0.10)', border: `1px solid hsl(var(--primary) / ${submitState === 'pending' ? '0.15' : '0.25'})` }}>
-                {submitState === 'pending' ? <Loader2 className="w-8 h-8 text-primary animate-spin" /> : <CheckCircle2 className="w-10 h-10 text-primary" />}
-                <p className="font-bold text-primary">{submitState === 'pending' ? 'Locking in...' : 'Answer Locked In!'}</p>
-                <p className="text-sm text-muted-foreground">"{submittedAnswerRef.current}"</p>
-                {myWager && <span className="text-xs text-accent">⚡ Go Hard wagered</span>}
+                style={{
+                  background: submitState === 'pending' ? 'hsl(var(--primary) / 0.06)' : awayFlagged ? 'hsl(var(--destructive) / 0.08)' : 'hsl(var(--primary) / 0.10)',
+                  border: `1px solid hsl(var(--${awayFlagged && submitState !== 'pending' ? 'destructive' : 'primary'}) / ${submitState === 'pending' ? '0.15' : '0.25'})`,
+                }}>
+                {submitState === 'pending' ? (
+                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                ) : awayFlagged ? (
+                  <XCircle className="w-10 h-10 text-destructive" />
+                ) : (
+                  <CheckCircle2 className="w-10 h-10 text-primary" />
+                )}
+                <p className={`font-bold ${awayFlagged && submitState !== 'pending' ? 'text-destructive' : 'text-primary'}`}>
+                  {submitState === 'pending' ? 'Locking in...' : awayFlagged ? 'Marked away — no answer submitted' : 'Answer Locked In!'}
+                </p>
+                {!awayFlagged && <p className="text-sm text-muted-foreground">"{submittedAnswerRef.current}"</p>}
+                {awayFlagged && <p className="text-sm text-muted-foreground">Your tab was hidden for a while during this question.</p>}
+                {myWager && !awayFlagged && <span className="text-xs text-accent">⚡ Go Hard wagered</span>}
               </motion.div>
             ) : submitState === 'failed' ? (
               <motion.div key="failed" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
