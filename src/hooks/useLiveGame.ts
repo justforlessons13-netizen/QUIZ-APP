@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc, runTransaction } from 'firebase/firestore';
 import { LiveGameState, LiveTeam, RoundState, HostGamePhase, TEAM_EMOJIS, createLiveGame } from '@/types/live-game';
 import { Question, checkAnswer, calculateScore } from '@/types/game';
 
@@ -494,37 +494,49 @@ export function useLiveGame(
       const db = getFirestore();
       const gameRef = doc(db, 'games', sessionId);
 
-      const snap = await getDoc(gameRef);
-      if (!snap.exists()) return;
+      // Rapid +1/-1 clicks each used to run their own independent getDoc -> compute -> updateDoc
+      // cycle. With no transaction serializing them, several overlapping clicks could all read
+      // the same stale score before any write landed, so a slower click's write could land AFTER
+      // a faster one and overwrite it with a lower, stale value — the score visibly ticking up
+      // then dropping back down. A transaction reads and writes atomically against the live
+      // server value and auto-retries on conflict, so every click's delta is applied in order.
+      let updatedTeams: LiveTeam[] | null = null;
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(gameRef);
+        if (!snap.exists()) return;
 
-      const current = snap.data() as LiveGameState;
+        const current = snap.data() as LiveGameState;
 
-      let roundIndex = specificRoundIndex;
-      if (roundIndex === undefined) {
-        const currentQ = current.questions[current.currentQuestionIndex];
-        if (!currentQ) return;
-        roundIndex = currentQ.round - 1;
-      }
+        let roundIndex = specificRoundIndex;
+        if (roundIndex === undefined) {
+          const currentQ = current.questions[current.currentQuestionIndex];
+          if (!currentQ) return;
+          roundIndex = currentQ.round - 1;
+        }
 
-      const updatedTeams = current.teams.map((t) => {
-        if (t.id !== teamId) return t;
+        const teams = current.teams.map((t) => {
+          if (t.id !== teamId) return t;
 
-        const newRoundScores = [...t.roundScores];
-        while (newRoundScores.length <= roundIndex!) newRoundScores.push(0);
-        newRoundScores[roundIndex!] = (newRoundScores[roundIndex!] || 0) + pointDelta;
+          const newRoundScores = [...t.roundScores];
+          while (newRoundScores.length <= roundIndex!) newRoundScores.push(0);
+          newRoundScores[roundIndex!] = (newRoundScores[roundIndex!] || 0) + pointDelta;
 
-        return {
-          ...t,
-          score: t.score + pointDelta,
-          roundScores: newRoundScores,
-        };
+          return {
+            ...t,
+            score: t.score + pointDelta,
+            roundScores: newRoundScores,
+          };
+        });
+
+        transaction.update(gameRef, { teams });
+        updatedTeams = teams;
       });
 
-      await updateDoc(gameRef, { teams: updatedTeams });
+      if (!updatedTeams) return;
 
       // Prevent the persistence effect from writing again
       isRemoteUpdate.current = true;
-      setGame((prev) => ({ ...prev, teams: updatedTeams }));
+      setGame((prev) => ({ ...prev, teams: updatedTeams! }));
     },
     [sessionId]
   );
