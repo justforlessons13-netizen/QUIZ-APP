@@ -158,17 +158,44 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
     const gameRef = doc(db, 'games', sessionId);
 
     try {
-      await runTransaction(db, async (transaction) => {
+      // Firestore transactions have no built-in timeout — on a flaky connection they hang
+      // indefinitely waiting for connectivity, stranding the player on "Locking in..." forever
+      // with no way to retry. Race it against a hard timeout so a bad connection surfaces as a
+      // normal "tap to retry" instead of a silent, permanent hang.
+      const TIMEOUT_MS = 12000;
+      const transactionPromise = runTransaction(db, async (transaction) => {
         const gameDoc = await transaction.get(gameRef);
         if (!gameDoc.exists()) throw new Error('Game not found');
 
         const data = gameDoc.data() as LiveGameState;
-        const roundIdx = data.rounds.findIndex(
+        let roundIdx = data.rounds.findIndex(
           (r) => r.questionIndex === data.currentQuestionIndex
         );
-        if (roundIdx === -1) throw new Error('Round not found');
 
         const newRounds = [...data.rounds];
+        if (roundIdx === -1) {
+          // Self-heal instead of failing the submit: the round entry is normally created in the
+          // same write that flips the phase to 'question', but if this transaction's read lands
+          // in the narrow gap before that write has propagated, build it here rather than making
+          // the team retry.
+          const q = data.questions[data.currentQuestionIndex];
+          if (!q) throw new Error('Question not found');
+          newRounds.push({
+            questionIndex: data.currentQuestionIndex,
+            roundNumber: q.round,
+            question: q,
+            answers: data.teams.map((t) => ({
+              teamId: t.id,
+              answer: '',
+              isCorrect: null,
+              isWagered: false,
+              pointsAwarded: 0,
+            })),
+            isGraded: false,
+          });
+          roundIdx = newRounds.length - 1;
+        }
+
         const round = { ...newRounds[roundIdx] };
         const exists = round.answers.some((a) => a.teamId === teamId);
 
@@ -192,6 +219,12 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
         newRounds[roundIdx] = round;
         transaction.update(gameRef, { rounds: newRounds });
       });
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Submit timed out — check your connection')), TIMEOUT_MS);
+      });
+
+      await Promise.race([transactionPromise, timeoutPromise]);
 
       setSubmitState('confirmed');
     } catch (err) {
@@ -483,7 +516,7 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
                           onClick={() => setLightboxOpen(false)}
                           className="absolute top-4 right-4 text-white/70 hover:text-white font-bungee text-sm bg-black/50 px-3 py-1.5 rounded-lg"
                         >
-                          \u2715 Close
+                          ✕ Close
                         </button>
                       </motion.div>
                     )}
@@ -512,7 +545,7 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
 
           {isTimeUp && submitState === 'idle' && (
             <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive font-bold w-full text-center">
-              Time's Up! \uD83D\uDED1
+              Time's Up! 🛑
             </div>
           )}
 
@@ -524,12 +557,12 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
                 {submitState === 'pending' ? <Loader2 className="w-8 h-8 text-primary animate-spin" /> : <CheckCircle2 className="w-10 h-10 text-primary" />}
                 <p className="font-bold text-primary">{submitState === 'pending' ? 'Locking in...' : 'Answer Locked In!'}</p>
                 <p className="text-sm text-muted-foreground">"{submittedAnswerRef.current}"</p>
-                {myWager && <span className="text-xs text-accent">\u26A1 Go Hard wagered</span>}
+                {myWager && <span className="text-xs text-accent">⚡ Go Hard wagered</span>}
               </motion.div>
             ) : submitState === 'failed' ? (
               <motion.div key="failed" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                 className="flex flex-col items-center gap-3 p-5 rounded-xl bg-destructive/10 border border-destructive/20 w-full max-w-md text-center">
-                <p className="font-bold text-destructive text-sm">Submission failed \u2014 tap to retry</p>
+                <p className="font-bold text-destructive text-sm">Submission failed — tap to retry</p>
                 <Button size="sm" variant="destructive" onClick={retrySubmit} className="rounded-xl">Try Again</Button>
               </motion.div>
             ) : (

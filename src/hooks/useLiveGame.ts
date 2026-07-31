@@ -195,7 +195,24 @@ export function useLiveGame(
     setGame((prev) => ({
       ...prev,
       phase: 'game-rules',
+      // Full reset of gameplay progress, not just the phase — the Home icon lets a host return
+      // to team-setup mid-game (e.g. to add a late team) without wiping currentQuestionIndex, and
+      // advanceToRoundRules() unconditionally forces currentRound back to 1 assuming a fresh
+      // start. Without resetting currentQuestionIndex/rounds here too, those two fall out of
+      // sync — round-rules shows "Round 1" while startRound() picks the question at the stale
+      // index, i.e. wherever the host had actually left off. Start Game must always mean "begin
+      // from question one," regardless of what state the game was in before landing back here.
+      currentQuestionIndex: 0,
+      currentRound: questions[0]?.round ?? 1,
+      rounds: [],
+      timeLeft: 0,
       timerActive: false,
+      revealStep: 0,
+      currentRuleIndex: 0,
+      roundRulesIndex: 0,
+      roundStepIndex: 0,
+      winnerConfettiPlays: 0,
+      lotteryState: null,
     }));
   }, [questions]);
 
