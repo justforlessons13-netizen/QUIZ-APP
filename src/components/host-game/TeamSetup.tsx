@@ -71,7 +71,9 @@ export function TeamSetup({ teams, onAddTeam, onRemoveTeam, onStart, gameCode, p
               </div>
             </div>
             <div className="p-2.5 flex items-center" style={{ borderLeft: '2px solid oklch(20% 0.02 195 / .12)' }}>
-              <QRCodeSVG value={`${window.location.origin}/join?code=${gameCode}`} size={64} />
+              {/* 64px was fine on a laptop screen but unscannable projected across a room on a
+                  TV — the physical printed size shrinks with the display, not the pixel count. */}
+              <QRCodeSVG value={`${window.location.origin}/join?code=${gameCode}`} size={150} />
             </div>
           </div>
         </div>
