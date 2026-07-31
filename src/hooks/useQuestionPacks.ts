@@ -7,6 +7,18 @@ import {
 import { QuestionPack } from '@/types/host';
 import { toast } from '@/hooks/use-toast';
 
+// Firestore's setDoc/updateDoc throw synchronously (crashing the save, not just rejecting a
+// promise) on any top-level field whose value is literally `undefined` — a mistake that's bitten
+// this pack repeatedly as optional Record<number,...> fields get spread around. Strip them right
+// before the write as a last line of defense, regardless of where they came from.
+function stripUndefined<T extends object>(obj: T): T {
+  const clean = { ...obj };
+  (Object.keys(clean) as (keyof T)[]).forEach((key) => {
+    if (clean[key] === undefined) delete clean[key];
+  });
+  return clean;
+}
+
 export function useQuestionPacks() {
   const [packs, setPacks] = useState<QuestionPack[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,10 +60,10 @@ export function useQuestionPacks() {
 
     try {
       // Stamp the pack with your Admin ID before saving
-      const packWithOwner: QuestionPack = {
+      const packWithOwner: QuestionPack = stripUndefined({
         ...pack,
         ownerId: user.uid
-      };
+      });
 
       await setDoc(doc(db, 'questionPacks', pack.id), packWithOwner);
       toast({ title: 'Pack saved to cloud' });
@@ -68,10 +80,10 @@ export function useQuestionPacks() {
     const db = getFirestore();
     try {
       const packRef = doc(db, 'questionPacks', updated.id);
-      await updateDoc(packRef, {
+      await updateDoc(packRef, stripUndefined({
         ...updated,
         updatedAt: new Date().toISOString()
-      });
+      }));
       toast({ title: 'Pack updated' });
       return true;
     } catch (err) {

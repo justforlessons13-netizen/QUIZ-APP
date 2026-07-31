@@ -60,8 +60,12 @@ export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }
         questions = questions.filter(q => q.round <= clamped);
       }
 
-      const pruneRecord = <T,>(record?: Record<number, T>) => {
-        if (!record) return record;
+      // Undefined, not just falsy, matters here: Firestore's setDoc/updateDoc throw
+      // synchronously on any field whose value is literally `undefined` (crashing the save),
+      // so a record that was never touched (still undefined) must stay OUT of the returned
+      // object entirely rather than being assigned `field: undefined`.
+      const pruneRecord = <T,>(record?: Record<number, T>): Record<number, T> | undefined => {
+        if (!record) return undefined;
         const next: Record<number, T> = {};
         for (const [k, v] of Object.entries(record)) {
           if (Number(k) <= clamped) next[Number(k)] = v;
@@ -69,15 +73,16 @@ export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }
         return next;
       };
 
-      return {
-        ...prev,
-        roundCount: clamped,
-        questions,
-        roundNames: pruneRecord(prev.roundNames),
-        roundRules: pruneRecord(prev.roundRules),
-        lotteryAfterRound: pruneRecord(prev.lotteryAfterRound),
-        standingsAfterRound: pruneRecord(prev.standingsAfterRound),
-      };
+      const next: QuestionPack = { ...prev, roundCount: clamped, questions };
+      const prunedRoundNames = pruneRecord(prev.roundNames);
+      if (prunedRoundNames !== undefined) next.roundNames = prunedRoundNames;
+      const prunedRoundRules = pruneRecord(prev.roundRules);
+      if (prunedRoundRules !== undefined) next.roundRules = prunedRoundRules;
+      const prunedLottery = pruneRecord(prev.lotteryAfterRound);
+      if (prunedLottery !== undefined) next.lotteryAfterRound = prunedLottery;
+      const prunedStandings = pruneRecord(prev.standingsAfterRound);
+      if (prunedStandings !== undefined) next.standingsAfterRound = prunedStandings;
+      return next;
     });
 
     if (activeRound > clamped) setActiveRound(clamped);
