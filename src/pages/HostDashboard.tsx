@@ -56,15 +56,16 @@ export default function HostDashboard() {
     setView('editor');
   };
 
-  const handleSave = (pack: QuestionPack) => {
-    if (isNewPack) {
-      addPack(pack);
+  // Only flips isNewPack/editingPack once the write actually succeeded — addPack/updatePack
+  // can silently fail (not logged in, network error), and the editor needs to know so it can
+  // keep showing "Create Pack" instead of falsely acting like the pack is already saved.
+  const handleSave = async (pack: QuestionPack): Promise<boolean> => {
+    const ok = isNewPack ? await addPack(pack) : await updatePack(pack);
+    if (ok) {
       setIsNewPack(false);
       setEditingPack(pack);
-    } else {
-      updatePack(pack);
-      setEditingPack(pack);
     }
+    return ok;
   };
 
   const handleDelete = (id: string) => {

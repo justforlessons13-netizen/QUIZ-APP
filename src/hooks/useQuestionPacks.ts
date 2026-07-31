@@ -34,15 +34,16 @@ export function useQuestionPacks() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Add Pack (Save to Firestore)
-  const addPack = useCallback(async (pack: QuestionPack) => {
+  // 2. Add Pack (Save to Firestore) — returns whether it actually persisted, so callers
+  // (the pack editor) don't show a false-positive "saved" state when this silently failed.
+  const addPack = useCallback(async (pack: QuestionPack): Promise<boolean> => {
     const db = getFirestore();
     const auth = getAuth();
     const user = auth.currentUser;
 
     if (!user) {
       toast({ title: 'Access Denied', description: 'You must be logged in as Admin to create packs.', variant: 'destructive' });
-      return;
+      return false;
     }
 
     try {
@@ -54,14 +55,16 @@ export function useQuestionPacks() {
 
       await setDoc(doc(db, 'questionPacks', pack.id), packWithOwner);
       toast({ title: 'Pack saved to cloud' });
+      return true;
     } catch (err) {
       console.error(err);
       toast({ title: 'Error saving pack', variant: 'destructive' });
+      return false;
     }
   }, []);
 
   // 3. Update Pack
-  const updatePack = useCallback(async (updated: QuestionPack) => {
+  const updatePack = useCallback(async (updated: QuestionPack): Promise<boolean> => {
     const db = getFirestore();
     try {
       const packRef = doc(db, 'questionPacks', updated.id);
@@ -70,9 +73,11 @@ export function useQuestionPacks() {
         updatedAt: new Date().toISOString()
       });
       toast({ title: 'Pack updated' });
+      return true;
     } catch (err) {
       console.error(err);
       toast({ title: 'Error updating pack', variant: 'destructive' });
+      return false;
     }
   }, []);
 

@@ -13,7 +13,7 @@ const theme = gameThemes.find((g) => g.id === 'qgame')!;
 
 interface QuestionPackEditorProps {
   pack: QuestionPack;
-  onSave: (pack: QuestionPack) => void;
+  onSave: (pack: QuestionPack) => Promise<boolean>;
   onBack: () => void;
   isNew?: boolean;
   user: User | null;
@@ -28,6 +28,7 @@ const fieldStyle = {
 export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }: QuestionPackEditorProps) {
   const [draft, setDraft] = useState<QuestionPack>({ ...pack, questions: [...pack.questions], roundCount: getRoundCount(pack) });
   const [activeRound, setActiveRound] = useState(1);
+  const [isSaving, setIsSaving] = useState(false);
 
   const roundCount = draft.roundCount ?? getRoundCount(draft);
   const rounds = Array.from({ length: roundCount }, (_, i) => i + 1);
@@ -105,7 +106,7 @@ export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }
     setDraft(prev => ({ ...prev, questions: prev.questions.filter(q => q.id !== id) }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!draft.name.trim()) {
       toast({ title: 'Pack name required', description: 'Give your question pack a name.', variant: 'destructive' });
       return;
@@ -122,8 +123,13 @@ export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }
     }
     const finalDraft = { ...draft };
     if (isNew && user) finalDraft.ownerId = user.uid;
-    onSave(finalDraft);
-    toast({ title: isNew ? 'Pack created!' : 'Pack updated!', description: finalDraft.name });
+    setIsSaving(true);
+    // onSave (HostDashboard) awaits the actual Firestore write and returns whether it
+    // succeeded — addPack silently declines if you're not logged in, so don't claim success
+    // (or lose the draft) here until that's confirmed. addPack/updatePack already surface the
+    // specific success/error toast, so no duplicate one here.
+    await onSave(finalDraft);
+    setIsSaving(false);
   };
 
   const handleReset = () => {
@@ -161,10 +167,11 @@ export function QuestionPackEditor({ pack, onSave, onBack, isNew = false, user }
           )}
           <button
             onClick={handleSave}
-            className="font-bungee uppercase text-[10px] px-4 py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all"
+            disabled={isSaving}
+            className="font-bungee uppercase text-[10px] px-4 py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ background: theme.color1, color: theme.onColor1 }}
           >
-            <Save className="w-3.5 h-3.5 mr-1.5 inline" /> {isNew ? 'Create Pack' : 'Save Changes'}
+            <Save className="w-3.5 h-3.5 mr-1.5 inline" /> {isSaving ? 'Saving…' : isNew ? 'Create Pack' : 'Save Changes'}
           </button>
         </div>
       </div>
