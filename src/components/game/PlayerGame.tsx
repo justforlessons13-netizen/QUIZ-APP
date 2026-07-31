@@ -6,7 +6,7 @@ import { Question } from '@/types/game';
 import { Button } from '@/components/ui/button';
 import { Emoji3D } from '@/components/ui/Emoji3D';
 import { DynamicBackground } from '@/components/layout/DynamicBackground';
-import { getFirestore, doc, onSnapshot, runTransaction } from 'firebase/firestore';
+import { getFirestore, doc, onSnapshot, runTransaction, updateDoc } from 'firebase/firestore';
 
 import { GAME_RULES } from '@/components/host-game/GameRulesDisplay';
 
@@ -103,30 +103,29 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
       const db = getFirestore();
       const gameRef = doc(db, 'games', sessionId);
       try {
-        await runTransaction(db, async (transaction) => {
-          const gameDoc = await transaction.get(gameRef);
-          if (!gameDoc.exists()) return;
-          const data = gameDoc.data() as LiveGameState;
-          const roundIdx = data.rounds.findIndex(
-            r => r.questionIndex === data.currentQuestionIndex
-          );
-          if (roundIdx === -1) return;
-          const newRounds = [...data.rounds];
-          const round = { ...newRounds[roundIdx] };
-          const exists = round.answers.some(a => a.teamId === teamId);
-          round.answers = exists
-            ? round.answers.map(a =>
-              a.teamId === teamId
-                ? { ...a, hasCheated: true, isCorrect: false, pointsAwarded: 0 }
-                : a
-            )
-            : [
-              ...round.answers,
-              { teamId, answer: '', hasCheated: true, isCorrect: false, isWagered: false, pointsAwarded: 0 },
-            ];
-          newRounds[roundIdx] = round;
-          transaction.update(gameRef, { rounds: newRounds });
-        });
+        const questionIndex = game?.currentQuestionIndex;
+        const round = questionIndex !== undefined ? game?.rounds[questionIndex] : undefined;
+        if (questionIndex === undefined || !round) return;
+
+        const flagged = { ...(round.answers[teamId] ?? { teamId, answer: '', isCorrect: null, isWagered: false, pointsAwarded: 0 }), hasCheated: true, isCorrect: false, pointsAwarded: 0 };
+
+        if (round.answers[teamId]) {
+          // Targeted field-path write — see submitAnswer's comment for why this avoids
+          // contending with every other team's simultaneous write to the same document.
+          await updateDoc(gameRef, { [`rounds.${questionIndex}.answers.${teamId}`]: flagged });
+        } else {
+          // This team's answer slot doesn't exist locally yet (shouldn't normally happen —
+          // every active team gets one when the round is created); fall back to a transaction
+          // rather than risk clobbering the round entry with a plain field-path write.
+          await runTransaction(db, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) return;
+            const data = gameDoc.data() as LiveGameState;
+            const r = data.rounds[questionIndex];
+            if (!r) return;
+            transaction.update(gameRef, { [`rounds.${questionIndex}.answers.${teamId}`]: { ...flagged, teamId } });
+          });
+        }
         setAwayFlagged(true);
         setSubmitState('confirmed');
       } catch (err) {
@@ -187,71 +186,74 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
     try {
       // Firestore transactions have no built-in timeout — on a flaky connection they hang
       // indefinitely waiting for connectivity, stranding the player on "Locking in..." forever
-      // with no way to retry. Race it against a hard timeout so a bad connection surfaces as a
-      // normal "tap to retry" instead of a silent, permanent hang.
+      // with no way to retry. Race everything below against a hard timeout so a bad connection
+      // surfaces as a normal "tap to retry" instead of a silent, permanent hang.
       const TIMEOUT_MS = 12000;
-      const transactionPromise = runTransaction(db, async (transaction) => {
-        const gameDoc = await transaction.get(gameRef);
-        if (!gameDoc.exists()) throw new Error('Game not found');
+      const questionIndex = game.currentQuestionIndex;
+      const existingRound = game.rounds[questionIndex];
 
-        const data = gameDoc.data() as LiveGameState;
-        let roundIdx = data.rounds.findIndex(
-          (r) => r.questionIndex === data.currentQuestionIndex
-        );
-
-        const newRounds = [...data.rounds];
-        if (roundIdx === -1) {
-          // Self-heal instead of failing the submit: the round entry is normally created in the
-          // same write that flips the phase to 'question', but if this transaction's read lands
-          // in the narrow gap before that write has propagated, build it here rather than making
-          // the team retry.
-          const q = data.questions[data.currentQuestionIndex];
-          if (!q) throw new Error('Question not found');
-          newRounds.push({
-            questionIndex: data.currentQuestionIndex,
-            roundNumber: q.round,
-            question: q,
-            answers: data.teams.map((t) => ({
-              teamId: t.id,
-              answer: '',
-              isCorrect: null,
-              isWagered: false,
-              pointsAwarded: 0,
-            })),
-            isGraded: false,
-          });
-          roundIdx = newRounds.length - 1;
-        }
-
-        const round = { ...newRounds[roundIdx] };
-        const exists = round.answers.some((a) => a.teamId === teamId);
-
-        round.answers = exists
-          ? round.answers.map((a) =>
-            a.teamId === teamId
-              ? { ...a, answer: myAnswer.trim(), isWagered: myWager }
-              : a
-          )
-          : [
-            ...round.answers,
-            {
+      const writePromise = (async () => {
+        if (existingRound && existingRound.answers[teamId]) {
+          // Common case: the round entry and this team's answer slot already exist (true for
+          // every real submission — both are created up front when the round starts). A single
+          // targeted field-path update touches only rounds.{questionIndex}.answers.{teamId},
+          // so N teams submitting at the same moment write to N different field paths on the
+          // same document instead of all contending to read-modify-write the entire rounds
+          // array — which is what previously made submissions fail and need repeated retries
+          // once enough teams were answering concurrently.
+          await updateDoc(gameRef, {
+            [`rounds.${questionIndex}.answers.${teamId}`]: {
               teamId,
               answer: myAnswer.trim(),
               isCorrect: null,
               isWagered: myWager,
               pointsAwarded: 0,
             },
-          ];
+          });
+          return;
+        }
 
-        newRounds[roundIdx] = round;
-        transaction.update(gameRef, { rounds: newRounds });
-      });
+        // Rare self-heal path: the round entry (or this team's slot in it) hasn't propagated to
+        // this client yet. Read-modify-write it safely inside a transaction rather than risk two
+        // teams each creating a half-populated round entry from a plain write.
+        await runTransaction(db, async (transaction) => {
+          const gameDoc = await transaction.get(gameRef);
+          if (!gameDoc.exists()) throw new Error('Game not found');
+
+          const data = gameDoc.data() as LiveGameState;
+          let round = data.rounds[questionIndex];
+
+          if (!round) {
+            const q = data.questions[questionIndex];
+            if (!q) throw new Error('Question not found');
+            round = {
+              questionIndex,
+              roundNumber: q.round,
+              question: q,
+              answers: Object.fromEntries(data.teams.map((t) => [t.id, {
+                teamId: t.id, answer: '', isCorrect: null, isWagered: false, pointsAwarded: 0,
+              }])),
+              isGraded: false,
+            };
+          }
+
+          const updatedRound = {
+            ...round,
+            answers: {
+              ...round.answers,
+              [teamId]: { teamId, answer: myAnswer.trim(), isCorrect: null, isWagered: myWager, pointsAwarded: 0 },
+            },
+          };
+
+          transaction.update(gameRef, { [`rounds.${questionIndex}`]: updatedRound });
+        });
+      })();
 
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error('Submit timed out — check your connection')), TIMEOUT_MS);
       });
 
-      await Promise.race([transactionPromise, timeoutPromise]);
+      await Promise.race([writePromise, timeoutPromise]);
 
       setSubmitState('confirmed');
     } catch (err) {
@@ -692,8 +694,8 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
         <div className="w-full space-y-3 overflow-y-auto max-h-[60vh] pb-4">
           {roundQuestions.map((q, i) => {
             const globalIndex = startIndexOfRound + i;
-            const roundState = game.rounds.find(r => r.questionIndex === globalIndex);
-            const myAns = roundState?.answers.find(a => a.teamId === teamId);
+            const roundState = game.rounds[globalIndex];
+            const myAns = roundState?.answers[teamId];
             if (!myAns) return null;
             roundTotalPoints += myAns.pointsAwarded;
 

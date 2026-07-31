@@ -1,7 +1,29 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc, runTransaction } from 'firebase/firestore';
-import { LiveGameState, LiveTeam, RoundState, HostGamePhase, TEAM_EMOJIS, createLiveGame } from '@/types/live-game';
+import { LiveGameState, LiveTeam, RoundState, TeamAnswer, HostGamePhase, TEAM_EMOJIS, createLiveGame } from '@/types/live-game';
 import { Question, checkAnswer, calculateScore } from '@/types/game';
+
+function buildAnswersMap(teams: LiveTeam[]): Record<string, TeamAnswer> {
+  return Object.fromEntries(teams.map((t) => [t.id, {
+    teamId: t.id,
+    answer: '',
+    isCorrect: null,
+    isWagered: false,
+    pointsAwarded: 0,
+  }]));
+}
+
+// The final round gets 60s per question, every other round 45s. Must key off the pack's actual
+// round count (its highest question round number), not a hardcoded "6" — packs can have any
+// round count since the round-count-picker feature shipped. Using a hardcoded 6 here disagreed
+// with HostGame.tsx's dynamic maxTime for any pack whose last round isn't literally round 6 (e.g.
+// a 5-round pack): startRound() would set timeLeft to the wrong 45s while maxTime correctly
+// expected 60s, and QuestionDisplay's `timeLeft < maxTime` auto-activate check would then fire
+// immediately on mount, skipping straight past the "Start Music & Timer" button.
+function questionTime(round: number, questions: Question[]): number {
+  const totalRounds = Math.max(...questions.map((q) => q.round), 1);
+  return round === totalRounds ? 60 : 45;
+}
 
 function advanceToNextQuestion(prev: LiveGameState): LiveGameState {
   const nextIndex = prev.currentQuestionIndex + 1;
@@ -21,19 +43,13 @@ function advanceToNextQuestion(prev: LiveGameState): LiveGameState {
     };
   }
 
-  const time = nextQ.round < 6 ? 45 : 60;
+  const time = questionTime(nextQ.round, prev.questions);
 
   const newRound: RoundState = {
     questionIndex: nextIndex,
     roundNumber: nextQ.round,
     question: nextQ,
-    answers: prev.teams.map(t => ({
-      teamId: t.id,
-      answer: '',
-      isCorrect: null,
-      isWagered: false,
-      pointsAwarded: 0,
-    })),
+    answers: buildAnswersMap(prev.teams),
     isGraded: false,
   };
 
@@ -44,7 +60,7 @@ function advanceToNextQuestion(prev: LiveGameState): LiveGameState {
     phase: 'question',
     timeLeft: time,
     timerActive: false,
-    rounds: [...prev.rounds, newRound],
+    rounds: { ...prev.rounds, [nextIndex]: newRound },
   };
 }
 
@@ -108,19 +124,52 @@ export function useLiveGame(
     const db = getFirestore();
     const gameRef = doc(db, 'games', sessionId);
 
-    const unsubscribe = onSnapshot(gameRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data() as LiveGameState;
-        isRemoteUpdate.current = true;
-        setGame(data);
-        prevGameRef.current = data;
-      } else {
-        setDoc(gameRef, game);
-      }
-      setLoading(false);
-    });
+    const applySnapshot = (data: LiveGameState) => {
+      isRemoteUpdate.current = true;
+      setGame(data);
+      prevGameRef.current = data;
+    };
 
-    return () => unsubscribe();
+    const unsubscribe = onSnapshot(
+      gameRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          applySnapshot(docSnap.data() as LiveGameState);
+        } else {
+          setDoc(gameRef, game);
+        }
+        setLoading(false);
+      },
+      (err) => {
+        // onSnapshot's stream can silently stop delivering updates without ever calling this —
+        // e.g. a projector window sitting untouched for a whole game is exactly the kind of
+        // background/unfocused tab Chrome deprioritizes, and the visibility/interval fallback
+        // below is what actually recovers it. This handler just stops a genuine stream error
+        // from crashing the render.
+        console.error('Game listener error:', err);
+      }
+    );
+
+    // Defensive resync: the realtime stream can go stale (backgrounded projector tab, a flaky
+    // network blip that doesn't trigger onSnapshot's error callback) and simply stop delivering
+    // updates with no visible sign anything is wrong — the screen just freezes on whatever it
+    // last received. A plain one-off re-fetch, both right when the tab regains visibility and on
+    // a periodic timer regardless of visibility (a projector on a real second screen may never
+    // report as "hidden" even while its stream has stalled), catches that silent staleness.
+    const resync = () => {
+      getDoc(gameRef).then((snap) => {
+        if (snap.exists()) applySnapshot(snap.data() as LiveGameState);
+      }).catch((err) => console.error('Resync failed:', err));
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') resync(); };
+    document.addEventListener('visibilitychange', onVisible);
+    const resyncInterval = setInterval(resync, 20000);
+
+    return () => {
+      unsubscribe();
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(resyncInterval);
+    };
   }, [sessionId]);
 
   // Persist on change to local state (Smart Save)
@@ -231,8 +280,8 @@ export function useLiveGame(
       const q = prev.questions[idx];
       if (!q) return prev;
 
-      const time = q.round < 6 ? 45 : 60;
-      const existingRound = prev.rounds.find((r) => r.questionIndex === idx);
+      const time = questionTime(q.round, prev.questions);
+      const existingRound = prev.rounds[idx];
       let newRounds = prev.rounds;
 
       if (!existingRound) {
@@ -240,16 +289,10 @@ export function useLiveGame(
           questionIndex: idx,
           roundNumber: q.round,
           question: q,
-          answers: prev.teams.map((t) => ({
-            teamId: t.id,
-            answer: '',
-            isCorrect: null,
-            isWagered: false,
-            pointsAwarded: 0,
-          })),
+          answers: buildAnswersMap(prev.teams),
           isGraded: false,
         };
-        newRounds = [...prev.rounds, newRound];
+        newRounds = { ...prev.rounds, [idx]: newRound };
       }
 
       return {
@@ -272,7 +315,7 @@ export function useLiveGame(
 
   const finishQuestion = useCallback(() => {
     setGame((prev) => {
-      const existing = prev.rounds.find((r) => r.questionIndex === prev.currentQuestionIndex);
+      const existing = prev.rounds[prev.currentQuestionIndex];
       let rounds = prev.rounds;
 
       if (!existing) {
@@ -281,16 +324,10 @@ export function useLiveGame(
           questionIndex: prev.currentQuestionIndex,
           roundNumber: q.round,
           question: q,
-          answers: prev.teams.map((t) => ({
-            teamId: t.id,
-            answer: '',
-            isCorrect: null,
-            isWagered: false,
-            pointsAwarded: 0,
-          })),
+          answers: buildAnswersMap(prev.teams),
           isGraded: false,
         };
-        rounds = [...prev.rounds, round];
+        rounds = { ...prev.rounds, [prev.currentQuestionIndex]: round };
       }
 
       const currentQ = prev.questions[prev.currentQuestionIndex];
@@ -298,23 +335,17 @@ export function useLiveGame(
       const nextQ = prev.questions[nextIndex];
 
       if (nextQ && nextQ.round === currentQ.round) {
-        const time = nextQ.round < 6 ? 45 : 60;
-        const existingNextRound = rounds.find((r) => r.questionIndex === nextIndex);
+        const time = questionTime(nextQ.round, prev.questions);
+        const existingNextRound = rounds[nextIndex];
         if (!existingNextRound) {
           const newRoundEntry: RoundState = {
             questionIndex: nextIndex,
             roundNumber: nextQ.round,
             question: nextQ,
-            answers: prev.teams.map((t) => ({
-              teamId: t.id,
-              answer: '',
-              isCorrect: null,
-              isWagered: false,
-              pointsAwarded: 0,
-            })),
+            answers: buildAnswersMap(prev.teams),
             isGraded: false,
           };
-          rounds = [...rounds, newRoundEntry];
+          rounds = { ...rounds, [nextIndex]: newRoundEntry };
         }
 
         return {
@@ -332,17 +363,21 @@ export function useLiveGame(
         .filter((i) => i !== -1);
       const firstIndexInRound = roundQuestionsIndices[0];
 
-      const updatedRounds = rounds.map((r) => {
-        if (r.roundNumber !== currentQ.round) return r;
-        const q = prev.questions[r.questionIndex];
-        return {
-          ...r,
-          answers: r.answers.map((a) => ({
-            ...a,
-            isCorrect: a.isCorrect ?? checkAnswer(a.answer, q.answer),
-          })),
-        };
-      });
+      const updatedRounds = Object.fromEntries(
+        Object.entries(rounds).map(([key, r]) => {
+          if (r.roundNumber !== currentQ.round) return [key, r];
+          const q = prev.questions[r.questionIndex];
+          return [key, {
+            ...r,
+            answers: Object.fromEntries(
+              Object.entries(r.answers).map(([teamId, a]) => [teamId, {
+                ...a,
+                isCorrect: a.isCorrect ?? checkAnswer(a.answer, q.answer),
+              }])
+            ),
+          }];
+        })
+      );
 
       return {
         ...prev,
@@ -359,15 +394,18 @@ export function useLiveGame(
 
   const updateTeamAnswer = useCallback((teamId: string, answer: string, isWagered?: boolean) => {
     setGame((prev) => {
-      const rounds = prev.rounds.map((r) => {
-        if (r.questionIndex !== prev.currentQuestionIndex) return r;
-        return {
+      const r = prev.rounds[prev.currentQuestionIndex];
+      if (!r || !r.answers[teamId]) return prev;
+      const rounds = {
+        ...prev.rounds,
+        [prev.currentQuestionIndex]: {
           ...r,
-          answers: r.answers.map((a) =>
-            a.teamId === teamId ? { ...a, answer, ...(isWagered !== undefined ? { isWagered } : {}) } : a
-          ),
-        };
-      });
+          answers: {
+            ...r.answers,
+            [teamId]: { ...r.answers[teamId], answer, ...(isWagered !== undefined ? { isWagered } : {}) },
+          },
+        },
+      };
       return { ...prev, rounds };
     });
   }, []);
@@ -375,17 +413,17 @@ export function useLiveGame(
   const autoGrade = useCallback(() => {
     setGame((prev) => {
       const q = prev.questions[prev.currentQuestionIndex];
-      if (!q) return prev;
-      const rounds = prev.rounds.map((r) => {
-        if (r.questionIndex !== prev.currentQuestionIndex) return r;
-        return {
+      const r = prev.rounds[prev.currentQuestionIndex];
+      if (!q || !r) return prev;
+      const rounds = {
+        ...prev.rounds,
+        [prev.currentQuestionIndex]: {
           ...r,
-          answers: r.answers.map((a) => ({
-            ...a,
-            isCorrect: checkAnswer(a.answer, q.answer),
-          })),
-        };
-      });
+          answers: Object.fromEntries(
+            Object.entries(r.answers).map(([teamId, a]) => [teamId, { ...a, isCorrect: checkAnswer(a.answer, q.answer) }])
+          ),
+        },
+      };
       return { ...prev, rounds, phase: 'grading' };
     });
   }, []);
@@ -393,13 +431,12 @@ export function useLiveGame(
   const setAnswerCorrectness = useCallback((teamId: string, isCorrect: boolean, questionIndex?: number) => {
     setGame((prev) => {
       const targetIndex = questionIndex ?? prev.currentQuestionIndex;
-      const rounds = prev.rounds.map((r) => {
-        if (r.questionIndex !== targetIndex) return r;
-        return {
-          ...r,
-          answers: r.answers.map((a) => (a.teamId === teamId ? { ...a, isCorrect } : a)),
-        };
-      });
+      const r = prev.rounds[targetIndex];
+      if (!r || !r.answers[teamId]) return prev;
+      const rounds = {
+        ...prev.rounds,
+        [targetIndex]: { ...r, answers: { ...r.answers, [teamId]: { ...r.answers[teamId], isCorrect } } },
+      };
       return { ...prev, rounds };
     });
   }, []);
@@ -414,21 +451,24 @@ export function useLiveGame(
 
       const totalRounds = Math.max(...prev.questions.map((q) => q.round), 1);
 
-      const newRounds = prev.rounds.map((r) => {
-        if (r.roundNumber !== currentQ.round) return r;
-        const q = prev.questions[r.questionIndex];
-        const updatedAnswers = r.answers.map((a) => {
-          const points = a.hasCheated ? 0 : calculateScore(q.round === totalRounds, !!a.isCorrect, a.isWagered);
-          return { ...a, pointsAwarded: points };
-        });
-        return { ...r, answers: updatedAnswers, isGraded: true };
-      });
+      const newRounds = Object.fromEntries(
+        Object.entries(prev.rounds).map(([key, r]) => {
+          if (r.roundNumber !== currentQ.round) return [key, r];
+          const q = prev.questions[r.questionIndex];
+          const updatedAnswers = Object.fromEntries(
+            Object.entries(r.answers).map(([teamId, a]) => {
+              const points = a.hasCheated ? 0 : calculateScore(q.round === totalRounds, !!a.isCorrect, a.isWagered);
+              return [teamId, { ...a, pointsAwarded: points }];
+            })
+          );
+          return [key, { ...r, answers: updatedAnswers, isGraded: true }];
+        })
+      );
 
       const refinedTeams = prev.teams.map((t) => {
-        const roundQuestions = newRounds.filter((r) => r.roundNumber === currentQ.round);
+        const roundQuestions = Object.values(newRounds).filter((r) => r.roundNumber === currentQ.round);
         const totalPts = roundQuestions.reduce((sum, r) => {
-          const ans = r.answers.find((a) => a.teamId === t.id);
-          return sum + (ans?.pointsAwarded ?? 0);
+          return sum + (r.answers[t.id]?.pointsAwarded ?? 0);
         }, 0);
         const newRoundScores = [...t.roundScores];
         while (newRoundScores.length < currentQ.round) newRoundScores.push(0);

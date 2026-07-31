@@ -177,7 +177,7 @@ function LiveGameController({
   const currentQuestion = game.currentQuestionIndex < pack.questions.length
     ? pack.questions[game.currentQuestionIndex]
     : undefined;
-  const currentRoundState = game.rounds.find(r => r.questionIndex === game.currentQuestionIndex);
+  const currentRoundState = game.rounds[game.currentQuestionIndex];
   const totalRounds = Math.max(...pack.questions.map(q => q.round), 1);
   const maxTime = (currentQuestion?.round ?? 1) === totalRounds ? 60 : 45;
 
@@ -195,10 +195,12 @@ function LiveGameController({
     .map(({ q, questionIndex }) => ({
       questionIndex,
       question: q,
-      answers: game.rounds.find(r => r.questionIndex === questionIndex)?.answers ?? [],
+      // HostGrading/RoundReveal expect an array — the Firestore-side map keyed by teamId only
+      // exists to make per-team answer writes contention-free (see RoundState.answers).
+      answers: Object.values(game.rounds[questionIndex]?.answers ?? {}),
     }));
 
-  const answeredCount = currentRoundState?.answers.filter(a => a.answer.trim().length > 0).length ?? 0;
+  const answeredCount = Object.values(currentRoundState?.answers ?? {}).filter(a => a.answer.trim().length > 0).length;
   const teamsTotal = game.teams.length;
 
   const currentMediaUrl = currentQuestion?.mediaUrl?.toLowerCase() || '';

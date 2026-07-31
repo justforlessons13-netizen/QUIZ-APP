@@ -21,7 +21,11 @@ export interface RoundState {
   questionIndex: number;
   roundNumber: number;
   question: Question;
-  answers: TeamAnswer[];
+  // Keyed by teamId (was TeamAnswer[]) — lets a team's submit write target a single field path
+  // (rounds.{questionIndex}.answers.{teamId}) instead of reading-modifying-writing the entire
+  // rounds array, which put every simultaneously-submitting team in contention for the same
+  // document and forced repeated transaction retries under load.
+  answers: Record<string, TeamAnswer>;
   isGraded: boolean;
 }
 
@@ -49,7 +53,8 @@ export interface LiveGameState {
   currentQuestionIndex: number;
   currentRound: number;
   phase: HostGamePhase;
-  rounds: RoundState[];
+  // Keyed by questionIndex (was RoundState[]) — see the answers field comment on RoundState for why.
+  rounds: Record<number, RoundState>;
   timeLeft: number;
   timerActive: boolean;
   createdAt: string;
@@ -83,7 +88,7 @@ export function createLiveGame(sessionId: string, packId: string, packName: stri
     currentQuestionIndex: 0,
     currentRound: questions[0]?.round ?? 1,
     phase: 'team-setup',
-    rounds: [],
+    rounds: {},
     timeLeft: 0,
     timerActive: false,
     createdAt: new Date().toISOString(),
