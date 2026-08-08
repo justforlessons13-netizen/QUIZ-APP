@@ -10,7 +10,7 @@ export interface GameFeature {
 }
 
 export interface GameTheme {
-  id: 'qgame' | 'bee';
+  id: 'qgame' | 'bee' | 'territory';
   label: string;
   tag: string;
   title: string;
@@ -73,6 +73,27 @@ export const gameThemes: GameTheme[] = [
       { title: 'Sudden death', desc: 'One miss, you’re out' },
       { title: 'Stage display', desc: 'Word on the big screen' },
       { title: 'Solo or team', desc: 'Flexible format' },
+    ],
+  },
+  {
+    id: 'territory',
+    label: 'Territory Battle',
+    tag: 'Capture. Battle. Conquer.',
+    title: 'Claim the whole map',
+    description:
+      'Duo or trio trivia duels where every correct, fast answer captures ground — lose your base and you\'re out.',
+    packsTitle: 'Battle packs',
+    primaryCta: { label: 'Host a battle', to: '/territory' },
+    secondaryCta: { label: 'Join a battle', to: '/territory' },
+    color1: 'oklch(70% 0.18 40)',
+    color2: 'oklch(78% 0.15 45)',
+    color3: 'oklch(50% 0.18 35)',
+    onColor1: '#1a0f05',
+    features: [
+      { title: 'Capture phase', desc: 'Pick your base' },
+      { title: 'Battle rounds', desc: 'Fast or Long' },
+      { title: 'Elimination', desc: 'Lose your base, you\'re out' },
+      { title: '2-3 players', desc: 'Duo or trio' },
     ],
   },
 ];

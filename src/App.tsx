@@ -14,6 +14,9 @@ import Printables from './pages/Printables';
 import BeeHostDashboard from './pages/BeeHostDashboard';
 import BeeGame from './pages/BeeGame';
 import BeeStageDevice from './pages/BeeStageDevice';
+import TerritoryDashboard from './pages/TerritoryDashboard';
+import TerritoryGame from './pages/TerritoryGame';
+import TerritoryJoin from './pages/TerritoryJoin';
 
 const queryClient = new QueryClient();
 
@@ -35,6 +38,9 @@ const App = () => (
           <Route path="/bee" element={<BeeHostDashboard />} />
           <Route path="/bee/game" element={<BeeGame />} />
           <Route path="/bee/stage" element={<BeeStageDevice />} />
+          <Route path="/territory" element={<TerritoryDashboard />} />
+          <Route path="/territory/game" element={<TerritoryGame />} />
+          <Route path="/territory/join" element={<TerritoryJoin />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
