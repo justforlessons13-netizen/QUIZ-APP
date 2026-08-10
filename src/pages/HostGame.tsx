@@ -237,6 +237,9 @@ function LiveGameController({
     return (
       <>
         <RemoteControlPanel
+          phase={game.phase}
+          teams={game.teams}
+          onStartGame={startGame}
           question={currentQuestion ?? null}
           round={game.currentRound}
           answeredCount={answeredCount}
