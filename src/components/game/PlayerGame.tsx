@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, CheckCircle2, Clock, Trophy, PartyPopper, Tv, XCircle, CheckCircle } from 'lucide-react';
-import { LiveGameState, LiveTeam } from '@/types/live-game';
+import { LiveGameState, LiveTeam, normalizeRounds } from '@/types/live-game';
 import { Question } from '@/types/game';
 import { Button } from '@/components/ui/button';
 import { Emoji3D } from '@/components/ui/Emoji3D';
@@ -106,6 +106,10 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
         const questionIndex = game?.currentQuestionIndex;
         const round = questionIndex !== undefined ? game?.rounds[questionIndex] : undefined;
         if (questionIndex === undefined || !round) return;
+        // Same array hazard as submitAnswer: a dotted-path write against array-shaped rounds
+        // would wipe every other round. Recording an anti-cheat flag is never worth that, and
+        // the host heals the shape within a snapshot or two — so just skip this round.
+        if (Array.isArray(game?.rounds)) return;
 
         const flagged = { ...(round.answers[teamId] ?? { teamId, answer: '', isCorrect: null, isWagered: false, pointsAwarded: 0 }), hasCheated: true, isCorrect: false, pointsAwarded: 0 };
 
@@ -191,9 +195,15 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
       const TIMEOUT_MS = 12000;
       const questionIndex = game.currentQuestionIndex;
       const existingRound = game.rounds[questionIndex];
+      // Games started by an older build (and any doc an older build touched) still store `rounds`
+      // as an ARRAY. Firestore cannot address an array element with a dotted field path: rather
+      // than failing, the server replaces the whole array with a map holding only the written
+      // path, silently wiping every other round's answers and grading. So whenever the stored
+      // shape is an array, skip the targeted write and rewrite `rounds` as a whole healed map.
+      const roundsAreArray = Array.isArray(game.rounds);
 
       const writePromise = (async () => {
-        if (existingRound && existingRound.answers[teamId]) {
+        if (!roundsAreArray && existingRound && existingRound.answers[teamId]) {
           // Common case: the round entry and this team's answer slot already exist (true for
           // every real submission — both are created up front when the round starts). A single
           // targeted field-path update touches only rounds.{questionIndex}.answers.{teamId},
@@ -221,7 +231,9 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
           if (!gameDoc.exists()) throw new Error('Game not found');
 
           const data = gameDoc.data() as LiveGameState;
-          let round = data.rounds[questionIndex];
+          const storedRoundsWereArray = Array.isArray(data.rounds);
+          const rounds = normalizeRounds(data.rounds);
+          let round = rounds[questionIndex];
 
           if (!round) {
             const q = data.questions[questionIndex];
@@ -245,7 +257,13 @@ export function PlayerGame({ sessionId, teamId, teamName }: PlayerGameProps) {
             },
           };
 
-          transaction.update(gameRef, { [`rounds.${questionIndex}`]: updatedRound });
+          if (storedRoundsWereArray) {
+            // Rewrite the entire field as a map — this both records the answer and permanently
+            // repairs the document's shape, without the destructive array/dotted-path behaviour.
+            transaction.update(gameRef, { rounds: { ...rounds, [questionIndex]: updatedRound } });
+          } else {
+            transaction.update(gameRef, { [`rounds.${questionIndex}`]: updatedRound });
+          }
         });
       })();
 

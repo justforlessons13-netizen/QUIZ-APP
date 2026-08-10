@@ -78,6 +78,25 @@ export const TEAM_EMOJIS = [
   '🎯', '🧠', '🪄', '🚀', '📚', '🎸', '🦊', '⭐', '🔥', '🎲', '🇹🇿', '🦁', '🦖', '💎', '🎮', '🐼', '🍕', '👻'
 ];
 
+// `rounds` must be a MAP keyed by questionIndex, never an array. Every answer submit writes the
+// field path rounds.{questionIndex}.answers.{teamId}, and Firestore cannot address an array
+// element with a dotted path — instead of failing, the server silently REPLACES the whole array
+// with a map containing only that one path, wiping every other round's answers and grading.
+// Games created before rounds was migrated off arrays (and any doc written by an older build)
+// still hold an array, so normalize on every read and let the host persist the healed shape.
+export function normalizeRounds(rounds: unknown): Record<number, RoundState> {
+  if (Array.isArray(rounds)) {
+    const healed: Record<number, RoundState> = {};
+    rounds.forEach((round, i) => {
+      if (!round) return; // arrays can be sparse; skip holes
+      const r = round as RoundState;
+      healed[typeof r.questionIndex === 'number' ? r.questionIndex : i] = r;
+    });
+    return healed;
+  }
+  return (rounds ?? {}) as Record<number, RoundState>;
+}
+
 export function createLiveGame(sessionId: string, packId: string, packName: string, questions: Question[]): LiveGameState {
   return {
     sessionId,

@@ -1,7 +1,20 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc, runTransaction } from 'firebase/firestore';
-import { LiveGameState, LiveTeam, RoundState, TeamAnswer, HostGamePhase, TEAM_EMOJIS, createLiveGame } from '@/types/live-game';
+import { LiveGameState, LiveTeam, RoundState, TeamAnswer, HostGamePhase, TEAM_EMOJIS, createLiveGame, normalizeRounds } from '@/types/live-game';
 import { Question, checkAnswer, calculateScore } from '@/types/game';
+
+// Shared by the optimistic local update and the authoritative transaction in adjustTeamScore, so
+// the number the host sees the instant they click is computed exactly the same way the server
+// will compute it.
+function applyScoreDelta(teams: LiveTeam[], teamId: string, pointDelta: number, roundIndex: number): LiveTeam[] {
+  return teams.map((t) => {
+    if (t.id !== teamId) return t;
+    const newRoundScores = [...t.roundScores];
+    while (newRoundScores.length <= roundIndex) newRoundScores.push(0);
+    newRoundScores[roundIndex] = (newRoundScores[roundIndex] || 0) + pointDelta;
+    return { ...t, score: t.score + pointDelta, roundScores: newRoundScores };
+  });
+}
 
 function buildAnswersMap(teams: LiveTeam[]): Record<string, TeamAnswer> {
   return Object.fromEntries(teams.map((t) => [t.id, {
@@ -118,14 +131,42 @@ export function useLiveGame(
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isRemoteUpdate = useRef(false);
   const prevGameRef = useRef<LiveGameState>(game);
+  // Number of score-adjust transactions currently in flight. While this is > 0, incoming
+  // snapshots must not clobber `teams`, or the optimistic value the host just clicked would snap
+  // back to the pre-click number until the write lands — the visible flicker.
+  const pendingScoreWrites = useRef(0);
 
   // Subscribe to Firestore for real-time updates
   useEffect(() => {
     const db = getFirestore();
     const gameRef = doc(db, 'games', sessionId);
 
-    const applySnapshot = (data: LiveGameState) => {
+    const applySnapshot = (raw: LiveGameState) => {
+      // Heal legacy/array-shaped rounds before anything reads them (see normalizeRounds).
+      const healed = Array.isArray(raw.rounds);
+      const data: LiveGameState = healed ? { ...raw, rounds: normalizeRounds(raw.rounds) } : raw;
+
+      if (healed) {
+        // Deliberately do NOT flag this as a remote update, and diff against the raw server
+        // shape — that lets the persistence effect below notice rounds changed and write the
+        // repaired map back, permanently fixing the document instead of re-healing every read.
+        setGame(data);
+        prevGameRef.current = raw;
+        return;
+      }
+
       isRemoteUpdate.current = true;
+      if (pendingScoreWrites.current > 0) {
+        // A score edit is still committing. Take everything else from the server but keep our
+        // locally-adjusted teams, so the score doesn't visibly bounce back to its old value and
+        // then forward again once the transaction lands.
+        setGame((prev) => {
+          const merged = { ...data, teams: prev.teams };
+          prevGameRef.current = merged;
+          return merged;
+        });
+        return;
+      }
       setGame(data);
       prevGameRef.current = data;
     };
@@ -253,7 +294,13 @@ export function useLiveGame(
       // from question one," regardless of what state the game was in before landing back here.
       currentQuestionIndex: 0,
       currentRound: questions[0]?.round ?? 1,
-      rounds: [],
+      // MUST be {} and not [] — rounds is keyed by questionIndex (Record<number, RoundState>),
+      // and every answer write targets the field path rounds.{questionIndex}.answers.{teamId}.
+      // Firestore stores [] as an array value, and a dotted field path cannot address an array
+      // element, so any write landing before startRound() rebuilt rounds as a map would either
+      // be rejected or silently replace the whole array. TypeScript does not catch this because
+      // an array is assignable to Record<number, T>.
+      rounds: {},
       timeLeft: 0,
       timerActive: false,
       revealStep: 0,
@@ -540,43 +587,49 @@ export function useLiveGame(
       // a faster one and overwrite it with a lower, stale value — the score visibly ticking up
       // then dropping back down. A transaction reads and writes atomically against the live
       // server value and auto-retries on conflict, so every click's delta is applied in order.
-      let updatedTeams: LiveTeam[] | null = null;
-      await runTransaction(db, async (transaction) => {
-        const snap = await transaction.get(gameRef);
-        if (!snap.exists()) return;
-
-        const current = snap.data() as LiveGameState;
-
+      // Apply the delta to local state FIRST so the number moves on the same frame as the click.
+      // Previously the only setGame happened *after* awaiting the transaction, so every +1/−1 sat
+      // visibly unchanged for a full server round-trip before updating. The transaction below is
+      // still the source of truth; this is purely to stop the UI lagging behind the input.
+      pendingScoreWrites.current += 1;
+      isRemoteUpdate.current = true; // don't let the smart-save effect race the transaction
+      setGame((prev) => {
         let roundIndex = specificRoundIndex;
         if (roundIndex === undefined) {
-          const currentQ = current.questions[current.currentQuestionIndex];
-          if (!currentQ) return;
+          const currentQ = prev.questions[prev.currentQuestionIndex];
+          if (!currentQ) return prev;
           roundIndex = currentQ.round - 1;
         }
-
-        const teams = current.teams.map((t) => {
-          if (t.id !== teamId) return t;
-
-          const newRoundScores = [...t.roundScores];
-          while (newRoundScores.length <= roundIndex!) newRoundScores.push(0);
-          newRoundScores[roundIndex!] = (newRoundScores[roundIndex!] || 0) + pointDelta;
-
-          return {
-            ...t,
-            score: t.score + pointDelta,
-            roundScores: newRoundScores,
-          };
-        });
-
-        transaction.update(gameRef, { teams });
-        updatedTeams = teams;
+        const next = { ...prev, teams: applyScoreDelta(prev.teams, teamId, pointDelta, roundIndex) };
+        prevGameRef.current = next;
+        return next;
       });
 
-      if (!updatedTeams) return;
+      try {
+        await runTransaction(db, async (transaction) => {
+          const snap = await transaction.get(gameRef);
+          if (!snap.exists()) return;
 
-      // Prevent the persistence effect from writing again
-      isRemoteUpdate.current = true;
-      setGame((prev) => ({ ...prev, teams: updatedTeams! }));
+          const current = snap.data() as LiveGameState;
+
+          let roundIndex = specificRoundIndex;
+          if (roundIndex === undefined) {
+            const currentQ = current.questions[current.currentQuestionIndex];
+            if (!currentQ) return;
+            roundIndex = currentQ.round - 1;
+          }
+
+          transaction.update(gameRef, {
+            teams: applyScoreDelta(current.teams, teamId, pointDelta, roundIndex),
+          });
+        });
+      } catch (err) {
+        // Leave the optimistic value in place; the next snapshot after pendingScoreWrites drains
+        // carries the authoritative teams and will correct it.
+        console.error('Score adjust failed:', err);
+      } finally {
+        pendingScoreWrites.current = Math.max(0, pendingScoreWrites.current - 1);
+      }
     },
     [sessionId]
   );
