@@ -259,6 +259,11 @@ function LiveGameController({
           onEndGame={() => {
             if (window.confirm('End the game now?')) setPhase('finished');
           }}
+          currentRuleIndex={game.currentRuleIndex ?? 0}
+          onSetRuleIndex={updateRuleIndex}
+          roundRulesIndex={game.roundRulesIndex ?? 0}
+          onSetRoundRulesIndex={updateRoundRulesIndex}
+          roundRulesText={pack.roundRules?.[game.currentRound]}
         />
         <HostLeaderboardModal
           open={showLeaderboard}
