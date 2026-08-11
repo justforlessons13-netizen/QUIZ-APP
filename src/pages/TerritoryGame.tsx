@@ -3,11 +3,12 @@ import { AnimatePresence } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { getFirestore, setDoc, doc, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
-import { useTerritoryGame, QUESTION_SECONDS } from '@/hooks/useTerritoryGame';
-import { TerritoryPack, TerritoryMode, TerritoryVisibility, TerritoryDuration, playerCountFor } from '@/types/territory';
+import { useTerritoryGame } from '@/hooks/useTerritoryGame';
+import { TerritoryPack, TerritoryMode, TerritoryVisibility, playerCountFor } from '@/types/territory';
 import { getMapById } from '@/data/territory-maps';
 import { LobbySetup } from '@/components/territory-game/LobbySetup';
 import { BattleQuestion } from '@/components/territory-game/BattleQuestion';
+import { TerritoryPickScreen } from '@/components/territory-game/TerritoryPickScreen';
 import { RoundReveal } from '@/components/territory-game/RoundReveal';
 import { FinalStandings } from '@/components/territory-game/FinalStandings';
 import { gameThemes, alpha } from '@/lib/game-themes';
@@ -15,14 +16,14 @@ import { gameThemes, alpha } from '@/lib/game-themes';
 const theme = gameThemes.find((g) => g.id === 'territory')!;
 
 function TerritoryGameController({
-  pack, sessionId, mode, visibility, duration,
+  pack, sessionId, mode, visibility,
 }: {
-  pack: TerritoryPack; sessionId: string; mode: TerritoryMode; visibility: TerritoryVisibility; duration: TerritoryDuration;
+  pack: TerritoryPack; sessionId: string; mode: TerritoryMode; visibility: TerritoryVisibility;
 }) {
   const navigate = useNavigate();
   const {
-    game, ranked, addPlayer, removePlayer, startCapture, continueFromReveal, resetGame,
-  } = useTerritoryGame(sessionId, pack.id, pack.name, pack.questions, mode, visibility, duration, true);
+    game, ranked, addPlayer, removePlayer, startGame, continueFromReveal, resetGame,
+  } = useTerritoryGame(sessionId, pack.id, pack.name, pack.questions, mode, visibility, true);
 
   const gameCode = game.gameCode;
 
@@ -39,8 +40,10 @@ function TerritoryGameController({
   const currentQuestion = game.currentQuestionId != null
     ? pack.questions.find((q) => q.id === game.currentQuestionId) ?? null
     : null;
-  const activePlayers = game.players.filter((p) => !p.eliminated);
-  const answeredCount = activePlayers.filter((p) => game.answers[p.id]).length;
+  const answeredCount = game.respondingPlayerIds.filter((id) => game.answers[id]).length;
+  const attacker = game.attackerId ? game.players.find((p) => p.id === game.attackerId) ?? null : null;
+  const defender = game.defenderId ? game.players.find((p) => p.id === game.defenderId) ?? null : null;
+  const picker = game.pickOrder[game.pickIndex] ? game.players.find((p) => p.id === game.pickOrder[game.pickIndex]) : null;
 
   if (!map) {
     return (
@@ -77,37 +80,46 @@ function TerritoryGameController({
               map={map}
               onAddPlayer={addPlayer}
               onRemovePlayer={removePlayer}
-              onStart={startCapture}
+              onStart={startGame}
             />
           )}
 
-          {(game.phase === 'capture' || game.phase === 'battle') && (
+          {game.phase === 'question' && (
             <BattleQuestion
               key={`question-${game.currentQuestionId}`}
-              phase={game.phase}
+              roundKind={game.roundKind}
               question={currentQuestion}
-              round={game.currentRound}
-              totalRounds={game.totalBattleRounds}
               timeLeft={game.timeLeft}
-              maxTime={QUESTION_SECONDS}
+              maxTime={20}
               players={game.players}
               map={map}
               answeredCount={answeredCount}
-              totalActive={activePlayers.length}
+              totalActive={game.respondingPlayerIds.length}
+              attacker={attacker}
+              defender={defender}
             />
           )}
 
-          {game.phase === 'round-reveal' && (
+          {game.phase === 'pick' && picker && (
+            <TerritoryPickScreen
+              key="pick"
+              roundKind={game.roundKind}
+              picker={picker}
+              attacker={attacker}
+              map={map}
+              players={game.players}
+              availablePickIds={game.availablePickIds}
+            />
+          )}
+
+          {game.phase === 'reveal' && (
             <RoundReveal
               key="reveal"
-              isCapturePhase={game.currentRound === 0}
-              round={game.currentRound}
+              roundKind={game.roundKind}
               players={game.players}
               map={map}
               lastCaptures={game.lastCaptures ?? {}}
-              lastDefenders={game.lastDefenders ?? {}}
               lastIncome={game.lastIncome ?? {}}
-              eliminatedThisRound={game.eliminatedThisRound ?? []}
               onContinue={continueFromReveal}
             />
           )}
@@ -134,7 +146,6 @@ export default function TerritoryGame() {
   const packId = searchParams.get('pack') || '';
   const mode = (searchParams.get('mode') as TerritoryMode) || 'duo';
   const visibility = (searchParams.get('visibility') as TerritoryVisibility) || 'public';
-  const duration = (searchParams.get('duration') as TerritoryDuration) || 'fast';
 
   const [pack, setPack] = useState<TerritoryPack | null>(null);
   const [fetchingPack, setFetchingPack] = useState(true);
@@ -180,5 +191,5 @@ export default function TerritoryGame() {
     );
   }
 
-  return <TerritoryGameController pack={pack} sessionId={sessionId} mode={mode} visibility={visibility} duration={duration} />;
+  return <TerritoryGameController pack={pack} sessionId={sessionId} mode={mode} visibility={visibility} />;
 }

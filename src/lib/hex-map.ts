@@ -1,3 +1,5 @@
+import { TerritoryMapDef } from '@/types/territory';
+
 type Point = [number, number];
 
 // Deterministic pseudo-random in [0, 1) — no Math.random, so every curated map stays
@@ -139,4 +141,21 @@ export function hexPoints(cx: number, cy: number, r: number): Point[] {
     const angle = (Math.PI / 180) * (60 * i);
     return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)] as Point;
   });
+}
+
+// Builds a full TerritoryMapDef by tiling `boundary` with a hex grid around `seeds` — shared by
+// both the hand-authored curated maps and any data-derived map (e.g. one imported from a real
+// Azgaar export), so the two only differ in where their seeds/boundary come from.
+export function defineMap(id: string, name: string, forPlayerCount: 2 | 3, boundary: Point[], seeds: HexRegionSeed[], hexRadius = 5.5): TerritoryMapDef {
+  const { regions, edges, boundaryEdges } = buildHexMap(seeds, boundary, hexRadius);
+  return {
+    id,
+    name,
+    forPlayerCount,
+    style: 'hex',
+    hexRadius,
+    boundaryEdges,
+    nodes: regions.map((r) => ({ id: r.id, name: r.name, x: r.x, y: r.y, hexes: r.hexes, isBaseSlot: r.isBaseSlot, value: r.value })),
+    edges,
+  };
 }

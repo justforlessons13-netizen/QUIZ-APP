@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Plus } from 'lucide-react';
 import { useTerritoryPacks } from '@/hooks/useTerritoryPacks';
-import { TerritoryPack, TerritoryMode, TerritoryVisibility, TerritoryDuration, createEmptyTerritoryPack } from '@/types/territory';
+import { TerritoryPack, TerritoryMode, TerritoryVisibility, createEmptyTerritoryPack } from '@/types/territory';
 import { TerritoryPackList } from '@/components/territory/TerritoryPackList';
 import { TerritoryPackEditor } from '@/components/territory/TerritoryPackEditor';
 import { toast } from '@/hooks/use-toast';
@@ -63,9 +63,9 @@ export default function TerritoryDashboard() {
 
   // TerritoryPackList already gates this behind the pack's password (if any) before calling us —
   // by the time we're here, the host is cleared to start.
-  const handleStartGame = (pack: TerritoryPack, mode: TerritoryMode, visibility: TerritoryVisibility, duration: TerritoryDuration) => {
+  const handleStartGame = (pack: TerritoryPack, mode: TerritoryMode, visibility: TerritoryVisibility) => {
     const sessionId = crypto.randomUUID();
-    navigate(`/territory/game?session=${sessionId}&pack=${pack.id}&mode=${mode}&visibility=${visibility}&duration=${duration}`);
+    navigate(`/territory/game?session=${sessionId}&pack=${pack.id}&mode=${mode}&visibility=${visibility}`);
   };
 
   return (

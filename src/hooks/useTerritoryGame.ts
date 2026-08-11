@@ -2,17 +2,14 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc } from 'firebase/firestore';
 import {
   TerritoryGameState, TerritoryQuestion, TerritoryPlayer, TerritoryMode,
-  TerritoryVisibility, TerritoryDuration, TerritoryPhase,
+  TerritoryVisibility, TerritoryPhase, TerritoryMapDef, TerritoryBattleResult,
   createEmptyTerritoryGame, playerCountFor, PLAYER_EMOJIS, compareTerritoryPlayers,
 } from '@/types/territory';
-import { pickRandomMap, getMapById, neighborsOf } from '@/data/territory-maps';
+import { pickRandomMap, getMapById } from '@/data/territory-maps';
+import { QUESTION_SECONDS, pickQuestion, slotsForRank, computeAvailablePickIds, findNextPickerIndex } from '@/lib/territory-engine';
 
-export const QUESTION_SECONDS = 20;
+export { QUESTION_SECONDS };
 const CORRECT_POINTS = 10;
-const SPEED_BONUS_MAX = 5;
-// Rank (0 = fastest correct answer) -> territories captured this round. 3rd place gets none;
-// duo games never reach index 2, so the loser still gets the "2nd place" tier, not a shutout.
-const CAPTURE_TIERS = [2, 1, 0];
 
 function checkAnswer(question: TerritoryQuestion, raw: string): boolean {
   const given = raw.trim().toLowerCase();
@@ -23,13 +20,6 @@ function checkAnswer(question: TerritoryQuestion, raw: string): boolean {
     return !Number.isNaN(a) && !Number.isNaN(b) && a === b;
   }
   return given === question.answer.trim().toLowerCase();
-}
-
-function pickQuestion(questions: TerritoryQuestion[], usedIds: number[]): TerritoryQuestion | null {
-  if (questions.length === 0) return null;
-  const fresh = questions.filter((q) => !usedIds.includes(q.id));
-  const pool = fresh.length > 0 ? fresh : questions; // wrap around once the pool is exhausted
-  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 // Deep comparison helper — prevents writing identical objects every render. Mirrors
@@ -60,7 +50,6 @@ export function useTerritoryGame(
   questions: TerritoryQuestion[],
   mode: TerritoryMode,
   visibility: TerritoryVisibility,
-  duration: TerritoryDuration,
   // Only the primary host tab should drive the countdown — see useLiveGame.ts's identical param
   // for why (a second browser context running its own setInterval would race it over Firestore).
   isAuthoritative: boolean = true
@@ -71,7 +60,7 @@ export function useTerritoryGame(
   const [initialMapId] = useState(() => pickRandomMap(playerCountFor(mode)).id);
 
   const [game, setGame] = useState<TerritoryGameState>(() =>
-    createEmptyTerritoryGame(sessionId, packId, packName, mode, visibility, duration, initialMapId)
+    createEmptyTerritoryGame(sessionId, packId, packName, mode, visibility, initialMapId)
   );
   const [loading, setLoading] = useState(true);
 
@@ -169,6 +158,7 @@ export function useTerritoryGame(
         baseNodeId: null,
         ownedNodeIds: [],
         score: 0,
+        baseStars: 0,
         eliminated: false,
       };
       return { ...prev, players: [...prev.players, player] };
@@ -183,33 +173,32 @@ export function useTerritoryGame(
     setGame((prev) => ({ ...prev, phase }));
   }, []);
 
-  // Draws a fresh question and (re)starts the timer — shared by the capture question and every
-  // battle round.
-  const drawQuestion = useCallback((prev: TerritoryGameState): TerritoryGameState => {
+  // Draws a fresh broadcast question (base-capture or land-capture) to every active player.
+  const drawBroadcastQuestion = useCallback((prev: TerritoryGameState): TerritoryGameState => {
     const q = pickQuestion(questions, prev.usedQuestionIds);
     if (!q) return prev;
+    const active = prev.players.filter((p) => !p.eliminated).map((p) => p.id);
     return {
       ...prev,
+      phase: 'question',
       currentQuestionId: q.id,
       usedQuestionIds: [...prev.usedQuestionIds, q.id],
+      respondingPlayerIds: active,
       answers: {},
       timeLeft: QUESTION_SECONDS,
       timerActive: true,
       questionRevealedAt: Date.now(),
       lastCaptures: {},
-      lastDefenders: {},
-      lastIncome: {},
-      eliminatedThisRound: [],
     };
   }, [questions]);
 
-  // Host action: everyone has joined, begin the Capture question.
-  const startCapture = useCallback(() => {
+  // Host action: everyone has joined, begin the Base Capture question.
+  const startGame = useCallback(() => {
     setGame((prev) => {
       if (prev.phase !== 'lobby') return prev;
-      return drawQuestion({ ...prev, phase: 'capture' });
+      return drawBroadcastQuestion({ ...prev, roundKind: 'base-capture' });
     });
-  }, [drawQuestion]);
+  }, [drawBroadcastQuestion]);
 
   // Targeted field-path write — mirrors PlayerGame.tsx's submitAnswer. Writing only
   // answers.{playerId} (instead of routing through the whole-document setGame/diff above) means
@@ -224,17 +213,113 @@ export function useTerritoryGame(
     }).catch((err) => console.error('Submit answer failed:', err));
   }, [game.questionRevealedAt, sessionId]);
 
-  // Resolves the current question once every active player has answered or time runs out —
-  // computes correctness, applies captures/eliminations in speed order, and advances the phase.
-  // Auto-triggered (see the effect below) rather than requiring a host click each round, since
-  // these are objectively-scored questions with only 2-3 players.
-  const resolveRound = useCallback(() => {
+  // Rotates the attacker to whoever is now next-highest-ranked by territory (wrapping around),
+  // and sets up their target pick. Called whenever the current attacker loses a duel.
+  const passTurnToNextAttacker = useCallback((state: TerritoryGameState, map: TerritoryMapDef): TerritoryGameState => {
+    const active = state.players.filter((p) => !p.eliminated);
+    const ranked = [...active].sort(compareTerritoryPlayers);
+    const currentIdx = ranked.findIndex((p) => p.id === state.attackerId);
+    const nextAttacker = ranked[(currentIdx + 1) % ranked.length] ?? ranked[0];
+    return {
+      ...state,
+      phase: 'pick',
+      attackerId: nextAttacker.id,
+      defenderId: null,
+      targetNodeId: null,
+      pickOrder: [nextAttacker.id],
+      pickIndex: 0,
+      pickSlotsRemaining: 1,
+      availablePickIds: computeAvailablePickIds('battle', map, nextAttacker, state.players),
+      timerActive: false,
+    };
+  }, []);
+
+  // Resolves the current question — base-capture/land-capture rank the whole field and open a
+  // pick phase (the actual pick is then applied by the picking player's own device — see
+  // lib/territory-engine.ts's applyPick); battle compares just the attacker and defender and
+  // applies the hit directly, since only two players ever answer a battle question. Auto-triggered
+  // (see the effect below) rather than requiring a host click, since these are objectively-scored
+  // questions with only 2-3 players.
+  const resolveQuestion = useCallback(() => {
     setGame((prev) => {
-      if (prev.phase !== 'capture' && prev.phase !== 'battle') return prev;
+      if (prev.phase !== 'question') return prev;
       const question = questions.find((q) => q.id === prev.currentQuestionId);
       const map = getMapById(prev.mapId);
       if (!question || !map) return prev;
 
+      if (prev.roundKind === 'battle') {
+        if (!prev.attackerId || !prev.defenderId || !prev.targetNodeId) return prev;
+
+        const attackerAnswer = prev.answers[prev.attackerId];
+        const defenderAnswer = prev.answers[prev.defenderId];
+        const attackerCorrect = attackerAnswer ? checkAnswer(question, attackerAnswer.answer) : false;
+        const defenderCorrect = defenderAnswer ? checkAnswer(question, defenderAnswer.answer) : false;
+        const attackerElapsed = attackerAnswer?.elapsedMs ?? Infinity;
+        const defenderElapsed = defenderAnswer?.elapsedMs ?? Infinity;
+        const attackerWins = attackerCorrect && (!defenderCorrect || attackerElapsed < defenderElapsed);
+
+        let players = [...prev.players];
+        const updatePlayer = (id: string, fn: (p: TerritoryPlayer) => TerritoryPlayer) => {
+          players = players.map((p) => (p.id === id ? fn(p) : p));
+        };
+
+        let lastBattleResult: TerritoryBattleResult;
+
+        if (attackerWins) {
+          const target = map.nodes.find((n) => n.id === prev.targetNodeId);
+          if (target?.isBaseSlot) {
+            const defender = players.find((p) => p.id === prev.defenderId)!;
+            const newStars = Math.max(0, defender.baseStars - 1);
+            if (newStars <= 0) {
+              // Base fully depleted — attacker inherits every tile the defender owned, not just the base.
+              const inherited = defender.ownedNodeIds;
+              updatePlayer(prev.attackerId, (p) => ({
+                ...p,
+                ownedNodeIds: Array.from(new Set([...p.ownedNodeIds, ...inherited])),
+                score: p.score + CORRECT_POINTS,
+              }));
+              updatePlayer(prev.defenderId, (p) => ({ ...p, ownedNodeIds: [], baseStars: 0, eliminated: true }));
+              lastBattleResult = { attackerId: prev.attackerId, defenderId: prev.defenderId, targetNodeId: prev.targetNodeId, hit: true, starsLeft: 0, eliminated: true };
+            } else {
+              updatePlayer(prev.defenderId, (p) => ({ ...p, baseStars: newStars }));
+              updatePlayer(prev.attackerId, (p) => ({ ...p, score: p.score + CORRECT_POINTS }));
+              lastBattleResult = { attackerId: prev.attackerId, defenderId: prev.defenderId, targetNodeId: prev.targetNodeId, hit: true, starsLeft: newStars };
+            }
+          } else {
+            updatePlayer(prev.defenderId, (p) => ({ ...p, ownedNodeIds: p.ownedNodeIds.filter((n) => n !== prev.targetNodeId) }));
+            updatePlayer(prev.attackerId, (p) => ({ ...p, ownedNodeIds: [...p.ownedNodeIds, prev.targetNodeId!], score: p.score + CORRECT_POINTS }));
+            lastBattleResult = { attackerId: prev.attackerId, defenderId: prev.defenderId, targetNodeId: prev.targetNodeId, hit: true };
+          }
+        } else {
+          lastBattleResult = { attackerId: prev.attackerId, defenderId: prev.defenderId, targetNodeId: prev.targetNodeId, hit: false };
+        }
+
+        const survivors = players.filter((p) => !p.eliminated);
+        if (survivors.length <= 1) {
+          return { ...prev, players, lastBattleResult, phase: 'final-standings', timerActive: false };
+        }
+
+        if (attackerWins) {
+          // Attacker keeps their turn — pick the next target (possibly the same base again).
+          const attacker = players.find((p) => p.id === prev.attackerId)!;
+          const availablePickIds = computeAvailablePickIds('battle', map, attacker, players);
+          if (availablePickIds.length === 0) {
+            // Fully boxed in (rare) — pass the turn rather than getting stuck with nothing to pick.
+            return passTurnToNextAttacker({ ...prev, players, lastBattleResult }, map);
+          }
+          return {
+            ...prev, players, lastBattleResult,
+            phase: 'pick', pickOrder: [attacker.id], pickIndex: 0, pickSlotsRemaining: 1,
+            availablePickIds, targetNodeId: null, defenderId: null,
+            timerActive: false,
+          };
+        }
+
+        return passTurnToNextAttacker({ ...prev, players, lastBattleResult }, map);
+      }
+
+      // base-capture / land-capture: rank everyone (correct-and-fastest first, then everyone
+      // else by speed), then open a pick phase for whoever's turn it is first.
       const active = prev.players.filter((p) => !p.eliminated);
       const scored = active
         .map((p) => {
@@ -244,178 +329,90 @@ export function useTerritoryGame(
           return { player: p, isCorrect, elapsedMs };
         })
         .sort((a, b) => a.elapsedMs - b.elapsedMs);
+      const order = [...scored.filter((s) => s.isCorrect), ...scored.filter((s) => !s.isCorrect)];
+      const pickOrder = order.map((s) => s.player.id);
+      const roundKind = prev.roundKind as 'base-capture' | 'land-capture';
 
-      const qualifying = scored.filter((s) => s.isCorrect);
+      const idx = findNextPickerIndex(pickOrder, roundKind, 0, map, prev.players);
 
-      let players = [...prev.players];
-      const lastCaptures: Record<string, string> = {};
-      const lastDefenders: Record<string, string> = {};
-      const eliminatedThisRound: string[] = [];
-
-      const updatePlayer = (id: string, fn: (p: TerritoryPlayer) => TerritoryPlayer) => {
-        players = players.map((p) => (p.id === id ? fn(p) : p));
-      };
-
-      // Territory income: every owned node pays out its value at the end of the round —
-      // applied after captures below so newly-claimed ground counts immediately, matching the
-      // reference game's growing per-team totals.
-      const applyIncome = (): Record<string, number> => {
-        const income: Record<string, number> = {};
-        players.forEach((p) => {
-          if (p.eliminated) return;
-          const total = p.ownedNodeIds.reduce((sum, nodeId) => {
-            const node = map.nodes.find((n) => n.id === nodeId);
-            return sum + (node?.value ?? 0);
-          }, 0);
-          if (total > 0) {
-            income[p.id] = total;
-            updatePlayer(p.id, (pl) => ({ ...pl, score: pl.score + total }));
-          }
-        });
-        return income;
-      };
-
-      if (prev.phase === 'capture') {
-        // Base-pick order: correct-and-fastest first, then everyone else by speed. Assign each
-        // player, in that order, the next available base slot on the map.
-        const order = [...qualifying, ...scored.filter((s) => !s.isCorrect)];
-        const baseSlots = map.nodes.filter((n) => n.isBaseSlot).map((n) => n.id);
-        order.forEach((s, i) => {
-          const baseId = baseSlots[i];
-          if (!baseId) return;
-          updatePlayer(s.player.id, (p) => ({ ...p, baseNodeId: baseId, ownedNodeIds: [baseId] }));
-        });
-
-        const lastIncome = applyIncome();
-
-        return {
-          ...prev,
-          players,
-          lastIncome,
-          phase: 'round-reveal',
-          timerActive: false,
-        };
+      if (idx >= pickOrder.length) {
+        // Nobody has an active pick this cycle (degenerate — shouldn't happen with 2-3 players).
+        return { ...prev, pickOrder, pickIndex: 0, pickSlotsRemaining: 0, availablePickIds: [], phase: 'reveal', timerActive: false };
       }
 
-      // Battle round: reward by rank among correct answerers, fastest first — 1st place captures
-      // two territories, 2nd place one, 3rd place none. In duo (only two possible ranks), this
-      // means winner=2/loser=1 rather than a full shutout, since "0" is specifically the 3rd-place
-      // tier, not "whoever's last" — keeps a duo round from being a total swing every time.
-      qualifying.forEach((s, rank) => {
-        const captureCount = CAPTURE_TIERS[rank] ?? 0;
-        if (captureCount === 0) return;
-
-        const me = players.find((p) => p.id === s.player.id);
-        if (!me || me.eliminated) return;
-
-        const bonus = Math.max(0, Math.round(SPEED_BONUS_MAX * (1 - s.elapsedMs / (QUESTION_SECONDS * 1000))));
-        let captured = 0;
-
-        for (let i = 0; i < captureCount; i++) {
-          const current = players.find((p) => p.id === s.player.id)!;
-          const ownedSet = new Set(current.ownedNodeIds);
-          const candidateNeighbors = Array.from(
-            new Set(current.ownedNodeIds.flatMap((n) => neighborsOf(map, n)))
-          ).filter((n) => !ownedSet.has(n));
-
-          if (candidateNeighbors.length === 0) break; // fully boxed in this round
-
-          const unclaimed = candidateNeighbors.filter(
-            (n) => !players.some((p) => p.ownedNodeIds.includes(n))
-          );
-          const target = unclaimed[0] ?? candidateNeighbors[0];
-          const defender = players.find((p) => p.id !== s.player.id && p.ownedNodeIds.includes(target));
-
-          updatePlayer(s.player.id, (p) => ({
-            ...p,
-            ownedNodeIds: [...p.ownedNodeIds, target],
-            score: p.score + CORRECT_POINTS,
-          }));
-          lastCaptures[s.player.id] = target;
-          captured++;
-
-          if (defender) {
-            const wasBase = defender.baseNodeId === target;
-            lastDefenders[s.player.id] = defender.id;
-            updatePlayer(defender.id, (p) => ({
-              ...p,
-              ownedNodeIds: p.ownedNodeIds.filter((n) => n !== target),
-              eliminated: p.eliminated || wasBase,
-            }));
-            if (wasBase) eliminatedThisRound.push(defender.id);
-          }
-        }
-
-        if (captured > 0) {
-          updatePlayer(s.player.id, (p) => ({ ...p, score: p.score + bonus }));
-        }
-      });
-
-      const lastIncome = applyIncome();
-
-      const survivors = players.filter((p) => !p.eliminated);
-      const isLastRound = prev.currentRound >= prev.totalBattleRounds;
-      const gameOver = isLastRound || survivors.length <= 1;
-
+      const picker = order[idx].player;
       return {
         ...prev,
-        players,
-        lastCaptures,
-        lastDefenders,
-        lastIncome,
-        eliminatedThisRound,
-        phase: gameOver ? 'final-standings' : 'round-reveal',
+        phase: 'pick',
+        pickOrder,
+        pickIndex: idx,
+        pickSlotsRemaining: slotsForRank(roundKind, idx, pickOrder.length),
+        availablePickIds: computeAvailablePickIds(roundKind, map, picker, prev.players),
         timerActive: false,
       };
     });
-  }, [questions]);
+  }, [questions, passTurnToNextAttacker]);
 
-  // Auto-resolve: every active player has answered, or time ran out. Only the authoritative
-  // client triggers this (otherwise every open tab would race to resolve the same round).
+  // Auto-resolve: everyone expected to answer has answered, or time ran out. Only the
+  // authoritative client triggers this (otherwise every open tab would race to resolve it).
   useEffect(() => {
     if (!isAuthoritative) return;
-    if (game.phase !== 'capture' && game.phase !== 'battle') return;
-    const active = game.players.filter((p) => !p.eliminated);
-    const allAnswered = active.length > 0 && active.every((p) => game.answers[p.id]);
+    if (game.phase !== 'question') return;
+    const responders = game.respondingPlayerIds;
+    const allAnswered = responders.length > 0 && responders.every((id) => game.answers[id]);
     const timeUp = game.timerActive === false && game.timeLeft === 0;
     if ((allAnswered || timeUp) && !resolvingRef.current) {
       resolvingRef.current = true;
-      resolveRound();
+      resolveQuestion();
       // Reset once the phase has actually moved on, so a genuinely new question can resolve again.
       setTimeout(() => { resolvingRef.current = false; }, 500);
     }
-  }, [game.phase, game.answers, game.timeLeft, game.timerActive, game.players, isAuthoritative, resolveRound]);
+  }, [game.phase, game.answers, game.timeLeft, game.timerActive, game.respondingPlayerIds, isAuthoritative, resolveQuestion]);
 
-  // Host action from the round-reveal screen: start the next battle round, or wrap up.
+  // Host action from the reveal screen: continue base-capture -> land-capture, keep drawing
+  // land-capture questions until the map is fully claimed, then switch into battle.
   const continueFromReveal = useCallback(() => {
     setGame((prev) => {
-      if (prev.phase !== 'round-reveal') return prev;
+      if (prev.phase !== 'reveal') return prev;
+      const map = getMapById(prev.mapId);
+      if (!map) return prev;
 
-      if (prev.currentRound === 0) {
-        // Coming out of the capture round-reveal — begin battle round 1.
-        return drawQuestion({ ...prev, phase: 'battle', currentRound: 1 });
+      if (prev.roundKind === 'base-capture') {
+        return drawBroadcastQuestion({ ...prev, roundKind: 'land-capture' });
       }
 
-      const survivors = prev.players.filter((p) => !p.eliminated);
-      const isLastRound = prev.currentRound >= prev.totalBattleRounds;
-      if (isLastRound || survivors.length <= 1) {
-        return { ...prev, phase: 'final-standings' };
-      }
+      // land-capture
+      const allOwned = map.nodes.every((n) => prev.players.some((p) => p.ownedNodeIds.includes(n.id)));
+      if (!allOwned) return drawBroadcastQuestion(prev);
 
-      return drawQuestion({ ...prev, phase: 'battle', currentRound: prev.currentRound + 1 });
+      const active = prev.players.filter((p) => !p.eliminated);
+      const ranked = [...active].sort(compareTerritoryPlayers);
+      const attacker = ranked[0];
+      return {
+        ...prev,
+        roundKind: 'battle',
+        phase: 'pick',
+        attackerId: attacker.id,
+        defenderId: null,
+        targetNodeId: null,
+        pickOrder: [attacker.id],
+        pickIndex: 0,
+        pickSlotsRemaining: 1,
+        availablePickIds: computeAvailablePickIds('battle', map, attacker, prev.players),
+      };
     });
-  }, [drawQuestion]);
+  }, [drawBroadcastQuestion]);
 
   const finishGame = useCallback(() => {
     setGame((prev) => ({ ...prev, phase: 'finished' }));
   }, []);
 
   const resetGame = useCallback(() => {
-    const newGame = createEmptyTerritoryGame(sessionId, packId, packName, mode, visibility, duration, pickRandomMap(playerCountFor(mode)).id);
+    const newGame = createEmptyTerritoryGame(sessionId, packId, packName, mode, visibility, pickRandomMap(playerCountFor(mode)).id);
     setGame(newGame);
     const db = getFirestore();
     setDoc(doc(db, 'territory-games', sessionId), newGame);
-  }, [sessionId, packId, packName, mode, visibility, duration]);
+  }, [sessionId, packId, packName, mode, visibility]);
 
   const ranked = [...game.players].sort(compareTerritoryPlayers);
 
@@ -426,7 +423,7 @@ export function useTerritoryGame(
     addPlayer,
     removePlayer,
     setPhase,
-    startCapture,
+    startGame,
     submitAnswer,
     continueFromReveal,
     finishGame,

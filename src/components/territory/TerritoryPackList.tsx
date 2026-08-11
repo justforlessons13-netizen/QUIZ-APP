@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Pencil, Trash2, Copy, FileText, Download, Upload, Lock, Swords } from 'lucide-react';
 import { User } from 'firebase/auth';
-import { TerritoryPack, TerritoryMode, TerritoryVisibility, TerritoryDuration } from '@/types/territory';
+import { TerritoryPack, TerritoryMode, TerritoryVisibility } from '@/types/territory';
 import { exportTerritoryPackAsJson, readTerritoryJsonFile, parseImportedTerritoryPack } from '@/lib/territory-pack-io';
 import { toast } from '@/hooks/use-toast';
 import { gameThemes, alpha } from '@/lib/game-themes';
@@ -15,7 +15,7 @@ interface TerritoryPackListProps {
   onEdit: (pack: TerritoryPack) => void;
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
-  onStartGame: (pack: TerritoryPack, mode: TerritoryMode, visibility: TerritoryVisibility, duration: TerritoryDuration) => void;
+  onStartGame: (pack: TerritoryPack, mode: TerritoryMode, visibility: TerritoryVisibility) => void;
   onImport: (pack: TerritoryPack) => void;
   user: User | null;
 }
@@ -57,12 +57,10 @@ export function TerritoryPackList({ packs, onEdit, onDelete, onDuplicate, onStar
   const [setupPack, setSetupPack] = useState<TerritoryPack | null>(null);
   const [mode, setMode] = useState<TerritoryMode>('duo');
   const [visibility, setVisibility] = useState<TerritoryVisibility>('public');
-  const [duration, setDuration] = useState<TerritoryDuration>('fast');
 
   const openSetup = (pack: TerritoryPack) => {
     setMode('duo');
     setVisibility('public');
-    setDuration('fast');
     setSetupPack(pack);
   };
 
@@ -307,16 +305,6 @@ export function TerritoryPackList({ packs, onEdit, onDelete, onDuplicate, onStar
                 { value: 'private', label: 'Private', desc: 'Friends only' },
               ]}
             />
-            <SegmentedChoice<TerritoryDuration>
-              label="Duration"
-              value={duration}
-              onChange={setDuration}
-              options={[
-                { value: 'fast', label: 'Fast', desc: '4 rounds' },
-                { value: 'long', label: 'Long', desc: '12 rounds' },
-              ]}
-            />
-
             <div className="flex gap-2.5 mt-2">
               <button
                 type="button"
@@ -328,7 +316,7 @@ export function TerritoryPackList({ packs, onEdit, onDelete, onDuplicate, onStar
               </button>
               <button
                 type="button"
-                onClick={() => { onStartGame(setupPack, mode, visibility, duration); setSetupPack(null); }}
+                onClick={() => { onStartGame(setupPack, mode, visibility); setSetupPack(null); }}
                 className="flex-1 font-bungee uppercase text-xs py-3 rounded-[7px] flex items-center justify-center gap-1.5"
                 style={{ background: theme.color1, color: theme.onColor1 }}
               >

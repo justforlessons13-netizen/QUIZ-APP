@@ -167,6 +167,7 @@ export default function TerritoryJoin() {
         baseNodeId: null,
         ownedNodeIds: [],
         score: 0,
+        baseStars: 0,
         eliminated: false,
       };
 

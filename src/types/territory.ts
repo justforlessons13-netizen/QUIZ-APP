@@ -55,9 +55,10 @@ export interface TerritoryHexTile {
 export interface TerritoryNode {
   id: string;
   name: string;
-  x: number; // 0-100 — label/badge anchor point (region centroid), in the map's viewBox
+  x: number; // 0-100 — label/badge anchor point (capital, or region centroid), in the map's viewBox
   y: number; // 0-100
-  hexes: TerritoryHexTile[]; // hex tiles belonging to this region — see lib/hex-map.ts
+  hexes?: TerritoryHexTile[]; // hex tiles belonging to this region — style: 'hex' maps only
+  polygons?: [number, number][][]; // real border rings (multipolygon — islands are separate rings, not holes) — style: 'polygon' maps only
   isBaseSlot?: boolean; // eligible starting base for a player
   value: number; // territory's per-round income when owned
 }
@@ -75,13 +76,17 @@ export interface TerritoryMapDef {
   id: string;
   name: string;
   forPlayerCount: 2 | 3;
-  hexRadius: number;
-  boundaryEdges: TerritoryBoundaryEdge[]; // hex-edge segments between two differently-owned regions
+  style: 'hex' | 'polygon';
+  hexRadius?: number; // style: 'hex' only
+  boundaryEdges?: TerritoryBoundaryEdge[]; // hex-edge segments between two differently-owned regions — style: 'hex' only
+  coastline?: [number, number][][]; // dissolved outer landmass boundary, for the halo glow — style: 'polygon' only
   nodes: TerritoryNode[];
   edges: TerritoryEdge[];
 }
 
 // ─── Live game session ──────────────────────────────────────────────────────
+
+export const BASE_STARS = 3;
 
 export interface TerritoryPlayer {
   id: string;
@@ -90,18 +95,23 @@ export interface TerritoryPlayer {
   baseNodeId: string | null;
   ownedNodeIds: string[];
   score: number;
+  baseStars: number; // starts at BASE_STARS once a base is assigned; 0 = eliminated
   eliminated: boolean;
 }
 
 export type TerritoryMode = 'duo' | 'trio';
 export type TerritoryVisibility = 'public' | 'private';
-export type TerritoryDuration = 'fast' | 'long';
+
+// Which of the three systems is currently active. All three share the same
+// question -> pick -> reveal phase shape below, discriminated by this field —
+// avoids a combinatorial phase enum (base-capture-question, land-capture-pick, ...).
+export type TerritoryRoundKind = 'base-capture' | 'land-capture' | 'battle';
 
 export type TerritoryPhase =
   | 'lobby'
-  | 'capture'
-  | 'battle'
-  | 'round-reveal'
+  | 'question' // a broadcast (base/land-capture) or 1-on-1 duel (battle) question is live
+  | 'pick'     // someone must choose a target — a base slot, neutral land, or (battle) an enemy tile to attack
+  | 'reveal'   // base-capture/land-capture round summary; battle results are shown inline via lastBattleResult instead
   | 'final-standings'
   | 'finished';
 
@@ -111,41 +121,61 @@ export interface TerritoryAnswer {
   elapsedMs: number | null;
 }
 
+export interface TerritoryBattleResult {
+  attackerId: string;
+  defenderId: string;
+  targetNodeId: string;
+  hit: boolean; // did the attacker win this question
+  starsLeft?: number; // only set when the target was a base
+  eliminated?: boolean; // defender fully eliminated this exchange
+}
+
 export interface TerritoryGameState {
   sessionId: string;
   packId: string;
   packName: string;
   mode: TerritoryMode;
   visibility: TerritoryVisibility;
-  duration: TerritoryDuration;
   mapId: string;
   phase: TerritoryPhase;
+  roundKind: TerritoryRoundKind;
   players: TerritoryPlayer[];
-  currentRound: number; // 0 = capture phase, 1..totalBattleRounds = battle
-  totalBattleRounds: number;
   currentQuestionId: number | null;
   usedQuestionIds: number[]; // drawn-so-far pool, so a pack's questions don't repeat within a game
   timeLeft: number;
   timerActive: boolean;
   questionRevealedAt: number | null; // epoch ms — set when the current question goes live, for elapsedMs
-  // Keyed by playerId — a plain array-of-answers would force every simultaneous submission to
-  // contend for the same document (exactly the bug QGame's rounds/answers had before it was
-  // migrated off arrays — see src/types/live-game.ts's RoundState.answers comment). Built as a
-  // map from day one here.
+  // Who's expected to answer the current question — all active players for base/land-capture,
+  // exactly [attackerId, defenderId] for battle. Keyed by playerId — a plain array-of-answers
+  // would force every simultaneous submission to contend for the same document (exactly the bug
+  // QGame's rounds/answers had before it was migrated off arrays — see
+  // src/types/live-game.ts's RoundState.answers comment). Built as a map from day one here.
+  respondingPlayerIds: string[];
   answers: Record<string, TerritoryAnswer>;
-  lastCaptures?: Record<string, string>; // playerId -> nodeId captured this round, for the reveal screen
-  lastDefenders?: Record<string, string>; // playerId (attacker) -> playerId (defender), only set when the capture was taken from an opponent
-  lastIncome?: Record<string, number>; // playerId -> territory income earned this round, for the reveal screen
-  eliminatedThisRound?: string[]; // playerIds eliminated this round (base captured), for the reveal screen
+
+  // ── Pick sub-state (phase === 'pick') ──
+  pickOrder: string[]; // playerIds who get an active pick this cycle, already rank-ordered
+  pickIndex: number; // index into pickOrder for whoever's turn it is
+  pickSlotsRemaining: number; // how many picks the current picker still owes (2 then 1 for land-capture's top ranks; 1 for base-capture; unused in battle)
+  availablePickIds: string[]; // currently-valid tap targets for the current picker; recomputed after every pick
+
+  // ── Battle sub-state (persists across the whole Battle round-kind) ──
+  attackerId: string | null;
+  defenderId: string | null;
+  targetNodeId: string | null;
+  lastBattleResult?: TerritoryBattleResult | null;
+
+  // ── Base-capture / land-capture reveal sub-state — base/land-capture never takes territory
+  // from an opponent (that's Battle's job exclusively), so there's no "captured from" defender
+  // to track here, unlike lastBattleResult above.
+  lastCaptures?: Record<string, string[]>; // playerId -> nodeIds picked this cycle, for the reveal screen
+  lastIncome?: Record<string, number>; // playerId -> territory income earned this cycle, for the reveal screen
+
   createdAt: string;
   gameCode: string;
 }
 
 export const PLAYER_EMOJIS = ['🔥', '⚡', '🌊', '🌪️', '🗿', '🐺'];
-
-export function totalBattleRoundsFor(duration: TerritoryDuration): number {
-  return duration === 'fast' ? 4 : 12;
-}
 
 export function playerCountFor(mode: TerritoryMode): 2 | 3 {
   return mode === 'duo' ? 2 : 3;
@@ -157,7 +187,6 @@ export function createEmptyTerritoryGame(
   packName: string,
   mode: TerritoryMode,
   visibility: TerritoryVisibility,
-  duration: TerritoryDuration,
   mapId: string
 ): TerritoryGameState {
   return {
@@ -166,18 +195,24 @@ export function createEmptyTerritoryGame(
     packName,
     mode,
     visibility,
-    duration,
     mapId,
     phase: 'lobby',
+    roundKind: 'base-capture',
     players: [],
-    currentRound: 0,
-    totalBattleRounds: totalBattleRoundsFor(duration),
     currentQuestionId: null,
     usedQuestionIds: [],
     timeLeft: 0,
     timerActive: false,
     questionRevealedAt: null,
+    respondingPlayerIds: [],
     answers: {},
+    pickOrder: [],
+    pickIndex: 0,
+    pickSlotsRemaining: 0,
+    availablePickIds: [],
+    attackerId: null,
+    defenderId: null,
+    targetNodeId: null,
     createdAt: new Date().toISOString(),
     gameCode: Math.random().toString(36).substring(2, 6).toUpperCase(),
   };

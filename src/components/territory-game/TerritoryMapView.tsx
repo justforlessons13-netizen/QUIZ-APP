@@ -23,15 +23,25 @@ function ownerOf(nodeId: string, players: TerritoryPlayer[]): { player: Territor
   return null;
 }
 
+function ringPoints(ring: [number, number][]): string {
+  return ring.map((p) => p.join(',')).join(' ');
+}
+
 interface TerritoryMapViewProps {
   map: TerritoryMapDef;
   players: TerritoryPlayer[];
   size?: number;
-  lastCaptures?: Record<string, string>;
+  lastCaptures?: Record<string, string[]>;
+  onSelectNode?: (nodeId: string) => void;
+  highlightedNodeIds?: string[];
 }
 
-export function TerritoryMapView({ map, players, size = 320, lastCaptures = {} }: TerritoryMapViewProps) {
-  const capturedNodeIds = new Set(Object.values(lastCaptures));
+export function TerritoryMapView({
+  map, players, size = 320, lastCaptures = {}, onSelectNode, highlightedNodeIds,
+}: TerritoryMapViewProps) {
+  const capturedNodeIds = new Set(Object.values(lastCaptures).flat());
+  const highlighted = new Set(highlightedNodeIds ?? []);
+  const isPolygon = map.style === 'polygon';
 
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" style={{ overflow: 'visible' }}>
@@ -40,6 +50,10 @@ export function TerritoryMapView({ map, players, size = 320, lastCaptures = {} }
           <stop offset="0%" stopColor="#f2e2b3" />
           <stop offset="55%" stopColor="#e0c98a" />
           <stop offset="100%" stopColor="#c7a765" />
+        </radialGradient>
+        <radialGradient id="territory-ocean" cx="50%" cy="45%" r="75%">
+          <stop offset="0%" stopColor="#5b86b3" />
+          <stop offset="100%" stopColor="#365d85" />
         </radialGradient>
         {PLAYER_GRADIENTS.map(([light, dark], i) => (
           <linearGradient key={i} id={`territory-owner-${i}`} x1="20%" y1="10%" x2="90%" y2="100%">
@@ -50,58 +64,133 @@ export function TerritoryMapView({ map, players, size = 320, lastCaptures = {} }
         <filter id="territory-parchment-shadow" x="-30%" y="-30%" width="160%" height="160%">
           <feDropShadow dx="0" dy="0.6" stdDeviation="0.8" floodColor="#4a3418" floodOpacity="0.5" />
         </filter>
+        <filter id="territory-halo-blur" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="1.1" />
+        </filter>
       </defs>
 
-      {/* Parchment background with a few faint age-stain blotches */}
-      <rect x={-10} y={-10} width={120} height={120} fill="url(#territory-parchment)" />
-      {Array.from({ length: 6 }).map((_, i) => {
-        const bx = hash(i * 3.1) * 100;
-        const by = hash(i * 5.7 + 2) * 100;
-        return <circle key={i} cx={bx} cy={by} r={6 + hash(i) * 8} fill="#8a6d3f" opacity={0.06} />;
-      })}
+      {isPolygon ? (
+        <>
+          {/* Ocean backdrop + soft coastline glow rings, echoing a political-map reference look */}
+          <rect x={-10} y={-10} width={120} height={120} fill="url(#territory-ocean)" />
+          <g filter="url(#territory-halo-blur)">
+            {(map.coastline ?? []).map((ring, i) => (
+              <g key={i}>
+                <polygon points={ringPoints(ring)} fill="none" stroke="#dce9f5" strokeWidth={3.4} opacity={0.16} />
+                <polygon points={ringPoints(ring)} fill="none" stroke="#dce9f5" strokeWidth={1.8} opacity={0.22} />
+              </g>
+            ))}
+          </g>
 
-      <g filter="url(#territory-parchment-shadow)">
-        {map.nodes.flatMap((n) => {
-          const owner = ownerOf(n.id, players);
-          const fill = owner ? `url(#territory-owner-${owner.index % PLAYER_GRADIENTS.length})` : undefined;
-          return n.hexes.map((h, hi) => {
-            const pts = hexPoints(h.cx, h.cy, map.hexRadius * 0.96);
-            const neutralShade = hash(h.cx * 7.3 + h.cy * 1.7) > 0.5 ? NEUTRAL_FILL : NEUTRAL_FILL_ALT;
-            return (
-              <polygon
-                key={`${n.id}-${hi}`}
-                points={pts.map((p) => p.join(',')).join(' ')}
-                fill={fill ?? neutralShade}
-                stroke="rgba(74,52,24,0.35)"
-                strokeWidth={0.25}
-              />
-            );
-          });
-        })}
-      </g>
+          {/* Region fills — parchment texture per node via low-opacity blotches, ownership-driven color */}
+          <g filter="url(#territory-parchment-shadow)">
+            {map.nodes.flatMap((n) => {
+              const owner = ownerOf(n.id, players);
+              const fill = owner ? `url(#territory-owner-${owner.index % PLAYER_GRADIENTS.length})` : NEUTRAL_FILL;
+              return (n.polygons ?? []).map((ring, ri) => (
+                <polygon
+                  key={`${n.id}-${ri}`}
+                  points={ringPoints(ring)}
+                  fill={fill}
+                  stroke="#4a3418"
+                  strokeWidth={0.45}
+                  strokeDasharray="1.1,0.9"
+                  strokeOpacity={0.55}
+                  onClick={onSelectNode ? () => onSelectNode(n.id) : undefined}
+                  style={{ cursor: onSelectNode && highlighted.has(n.id) ? 'pointer' : 'default' }}
+                />
+              ));
+            })}
+          </g>
+          {Array.from({ length: 10 }).map((_, i) => {
+            const bx = hash(i * 4.3) * 100;
+            const by = hash(i * 6.1 + 3) * 100;
+            return <circle key={i} cx={bx} cy={by} r={5 + hash(i) * 7} fill="#3a2712" opacity={0.05} />;
+          })}
 
-      {/* Decorative terrain glyphs — flavor only, sparse and low-opacity, no gameplay meaning */}
-      {map.nodes.flatMap((n) => {
-        if (n.isBaseSlot) return [];
-        return n.hexes
-          .filter((h, hi) => hash(h.cx * 2.3 + h.cy * 4.1 + hi) > 0.72)
-          .map((h, hi) => (
-            <text
-              key={`${n.id}-decor-${hi}`}
-              x={h.cx} y={h.cy + 1}
-              fontSize={2.6}
-              textAnchor="middle"
-              opacity={0.35}
+          {/* Highlighted-target pulse — traces the actual polygon outline instead of a centroid circle */}
+          {map.nodes.filter((n) => highlighted.has(n.id)).flatMap((n) => (n.polygons ?? []).map((ring, ri) => (
+            <polygon
+              key={`${n.id}-pick-${ri}`}
+              points={ringPoints(ring)}
+              fill="none"
+              stroke="#fff"
+              strokeWidth={0.9}
+              opacity={0.85}
+              onClick={onSelectNode ? () => onSelectNode(n.id) : undefined}
+              style={{ cursor: onSelectNode ? 'pointer' : 'default' }}
             >
-              {DECOR_ICONS[Math.floor(hash(h.cx + h.cy) * DECOR_ICONS.length)]}
-            </text>
-          ));
-      })}
+              <animate attributeName="stroke-width" values="0.7;1.6;0.7" dur="1.1s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.9;0.45;0.9" dur="1.1s" repeatCount="indefinite" />
+            </polygon>
+          )))}
+        </>
+      ) : (
+        <>
+          {/* Parchment background with a few faint age-stain blotches */}
+          <rect x={-10} y={-10} width={120} height={120} fill="url(#territory-parchment)" />
+          {Array.from({ length: 6 }).map((_, i) => {
+            const bx = hash(i * 3.1) * 100;
+            const by = hash(i * 5.7 + 2) * 100;
+            return <circle key={i} cx={bx} cy={by} r={6 + hash(i) * 8} fill="#8a6d3f" opacity={0.06} />;
+          })}
 
-      {/* Thicker divider lines between differently-owned regions */}
-      {map.boundaryEdges.map((e, i) => (
-        <line key={i} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="#4a3418" strokeWidth={0.55} opacity={0.55} strokeLinecap="round" />
-      ))}
+          <g filter="url(#territory-parchment-shadow)">
+            {map.nodes.flatMap((n) => {
+              const owner = ownerOf(n.id, players);
+              const fill = owner ? `url(#territory-owner-${owner.index % PLAYER_GRADIENTS.length})` : undefined;
+              return (n.hexes ?? []).map((h, hi) => {
+                const pts = hexPoints(h.cx, h.cy, (map.hexRadius ?? 5.5) * 0.96);
+                const neutralShade = hash(h.cx * 7.3 + h.cy * 1.7) > 0.5 ? NEUTRAL_FILL : NEUTRAL_FILL_ALT;
+                return (
+                  <polygon
+                    key={`${n.id}-${hi}`}
+                    points={pts.map((p) => p.join(',')).join(' ')}
+                    fill={fill ?? neutralShade}
+                    stroke="rgba(74,52,24,0.35)"
+                    strokeWidth={0.25}
+                  />
+                );
+              });
+            })}
+          </g>
+
+          {/* Decorative terrain glyphs — flavor only, sparse and low-opacity, no gameplay meaning */}
+          {map.nodes.flatMap((n) => {
+            if (n.isBaseSlot) return [];
+            return (n.hexes ?? [])
+              .filter((h, hi) => hash(h.cx * 2.3 + h.cy * 4.1 + hi) > 0.72)
+              .map((h, hi) => (
+                <text
+                  key={`${n.id}-decor-${hi}`}
+                  x={h.cx} y={h.cy + 1}
+                  fontSize={2.6}
+                  textAnchor="middle"
+                  opacity={0.35}
+                >
+                  {DECOR_ICONS[Math.floor(hash(h.cx + h.cy) * DECOR_ICONS.length)]}
+                </text>
+              ));
+          })}
+
+          {/* Thicker divider lines between differently-owned regions */}
+          {(map.boundaryEdges ?? []).map((e, i) => (
+            <line key={i} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="#4a3418" strokeWidth={0.55} opacity={0.55} strokeLinecap="round" />
+          ))}
+
+          {/* Highlighted-target glow — shown whenever highlightedNodeIds is passed (spectators see it
+              too, informationally); only clickable when onSelectNode is also provided. */}
+          {map.nodes.filter((n) => highlighted.has(n.id)).map((n) => (
+            <g key={`${n.id}-pick`} onClick={onSelectNode ? () => onSelectNode(n.id) : undefined} style={{ cursor: onSelectNode ? 'pointer' : 'default' }}>
+              {onSelectNode && <circle cx={n.x} cy={n.y} r={6} fill="rgba(255,255,255,0.001)" />}
+              <circle cx={n.x} cy={n.y} r={4.4} fill="none" stroke="#fff" strokeWidth={0.6} opacity={0.85}>
+                <animate attributeName="r" values="4;5.4;4" dur="1.1s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.9;0.4;0.9" dur="1.1s" repeatCount="indefinite" />
+              </circle>
+            </g>
+          ))}
+        </>
+      )}
 
       {map.nodes.map((n) => {
         const justCaptured = capturedNodeIds.has(n.id);
@@ -113,8 +202,13 @@ export function TerritoryMapView({ map, players, size = 320, lastCaptures = {} }
               <g>
                 <circle cx={n.x} cy={n.y} r={3.6} fill="#3a2712" stroke="#e8b84b" strokeWidth={0.7} />
                 <text x={n.x} y={n.y + 1.3} fontSize={3.8} textAnchor="middle" style={{ fontWeight: 700 }}>🏰</text>
+                {owner && owner.player.baseNodeId === n.id && (
+                  <text x={n.x} y={n.y + 5.2} fontSize={2.8} textAnchor="middle" style={{ letterSpacing: '0.5px' }}>
+                    {'★'.repeat(owner.player.baseStars) + '☆'.repeat(Math.max(0, 3 - owner.player.baseStars))}
+                  </text>
+                )}
                 <text
-                  x={n.x} y={n.y - 5.8} fontSize={3.2} textAnchor="middle" fill="#3a2712"
+                  x={n.x} y={n.y - 5.8} fontSize={isPolygon ? 2.4 : 3.2} textAnchor="middle" fill="#3a2712"
                   style={{ fontFamily: '"Bungee", sans-serif', paintOrder: 'stroke', stroke: '#f2e2b3', strokeWidth: 0.5 }}
                 >
                   {n.name}
@@ -122,7 +216,7 @@ export function TerritoryMapView({ map, players, size = 320, lastCaptures = {} }
               </g>
             ) : (
               <text
-                x={n.x} y={n.y + 1.1} fontSize={3.4} textAnchor="middle" fill="#3a2712"
+                x={n.x} y={n.y + 1.1} fontSize={isPolygon ? 2.6 : 3.4} textAnchor="middle" fill="#3a2712"
                 style={{ fontFamily: '"Bungee", sans-serif', paintOrder: 'stroke', stroke: 'rgba(242,226,179,0.7)', strokeWidth: 0.6 }}
               >
                 {n.value}

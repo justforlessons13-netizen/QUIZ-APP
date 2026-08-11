@@ -1,5 +1,6 @@
 import { TerritoryMapDef } from '@/types/territory';
-import { buildHexMap, makeBoundary, HexRegionSeed } from '@/lib/hex-map';
+import { makeBoundary, defineMap } from '@/lib/hex-map';
+import { coudreiaDuo, coudreiaTrio } from './territory-maps-coudreia';
 
 // Small curated set of hex-tile maps — an irregular "coastline" boundary with hand-placed seed
 // points, tiled into neighboring regions by nearest-hex assignment (see lib/hex-map.ts).
@@ -9,19 +10,6 @@ import { buildHexMap, makeBoundary, HexRegionSeed } from '@/lib/hex-map';
 // Jitter arrays and seed coordinates are deliberately asymmetric (not evenly-spaced angles or
 // mirrored positions) — a symmetric layout made every map look like a soccer-ball / geodesic
 // tiling instead of an organic landmass, since all the regions came out the same size.
-
-function defineMap(id: string, name: string, forPlayerCount: 2 | 3, boundary: ReturnType<typeof makeBoundary>, seeds: HexRegionSeed[]): TerritoryMapDef {
-  const { regions, edges, boundaryEdges, hexRadius } = buildHexMap(seeds, boundary);
-  return {
-    id,
-    name,
-    forPlayerCount,
-    hexRadius,
-    boundaryEdges,
-    nodes: regions.map((r) => ({ id: r.id, name: r.name, x: r.x, y: r.y, hexes: r.hexes, isBaseSlot: r.isBaseSlot, value: r.value })),
-    edges,
-  };
-}
 
 const BASE_VALUE = 200;
 const RICH_VALUE = 400;
@@ -86,7 +74,7 @@ const crossfire = defineMap(
   ]
 );
 
-export const TERRITORY_MAPS: TerritoryMapDef[] = [twinRivers, borderLine, triPeaks, crossfire];
+export const TERRITORY_MAPS: TerritoryMapDef[] = [twinRivers, borderLine, triPeaks, crossfire, coudreiaDuo, coudreiaTrio];
 
 export function pickRandomMap(playerCount: 2 | 3): TerritoryMapDef {
   const pool = TERRITORY_MAPS.filter((m) => m.forPlayerCount === playerCount);

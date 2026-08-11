@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion';
-import { TerritoryQuestion, TerritoryPlayer, TerritoryPhase } from '@/types/territory';
-import { TerritoryMapDef } from '@/types/territory';
+import { TerritoryQuestion, TerritoryPlayer, TerritoryRoundKind, TerritoryMapDef } from '@/types/territory';
 import { TerritoryMapView } from './TerritoryMapView';
 import { TerritoryTurnBanner } from './TerritoryTurnBanner';
 import { TerritoryScoreBar } from './TerritoryScoreBar';
@@ -8,24 +7,32 @@ import { gameThemes, alpha } from '@/lib/game-themes';
 
 const theme = gameThemes.find((g) => g.id === 'territory')!;
 
+const ROUND_LABEL: Record<TerritoryRoundKind, string> = {
+  'base-capture': 'Base Capture',
+  'land-capture': 'Land Capture',
+  battle: 'Battle',
+};
+
 interface BattleQuestionProps {
-  phase: TerritoryPhase; // 'capture' | 'battle'
+  roundKind: TerritoryRoundKind;
   question: TerritoryQuestion | null;
-  round: number;
-  totalRounds: number;
   timeLeft: number;
   maxTime: number;
   players: TerritoryPlayer[];
   map: TerritoryMapDef;
   answeredCount: number;
   totalActive: number;
+  attacker?: TerritoryPlayer | null; // battle only
+  defender?: TerritoryPlayer | null; // battle only
 }
 
 export function BattleQuestion({
-  phase, question, round, totalRounds, timeLeft, maxTime, players, map, answeredCount, totalActive,
+  roundKind, question, timeLeft, players, map, answeredCount, totalActive, attacker, defender,
 }: BattleQuestionProps) {
   const isLowTime = timeLeft <= 5 && timeLeft > 0;
-  const label = phase === 'capture' ? 'Capture Phase' : `Battle Round ${round} of ${totalRounds}`;
+  const label = roundKind === 'battle' && attacker && defender
+    ? `${attacker.name} vs ${defender.name}`
+    : ROUND_LABEL[roundKind];
 
   return (
     <motion.div
@@ -34,7 +41,7 @@ export function BattleQuestion({
       exit={{ opacity: 0, y: -20 }}
       className="relative w-full flex-1 flex flex-col items-center px-4 py-4 gap-3"
     >
-      <TerritoryTurnBanner label={label} bannerKey={`${phase}-${round}-${question?.id}`} />
+      <TerritoryTurnBanner label={ROUND_LABEL[roundKind]} bannerKey={`${roundKind}-${attacker?.id}-${question?.id}`} />
 
       <div className="relative flex items-center justify-center">
         <TerritoryMapView map={map} players={players} size={300} />
