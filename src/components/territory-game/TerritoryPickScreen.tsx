@@ -46,7 +46,7 @@ export function TerritoryPickScreen({ roundKind, picker, attacker, map, players,
         <h1 className="font-bungee text-white text-lg">{picker.name} is {verb}…</h1>
       </div>
 
-      <TerritoryMapView map={map} players={players} highlightedNodeIds={availablePickIds} size={300} />
+      <TerritoryMapView map={map} players={players} highlightedNodeIds={availablePickIds} size={560} />
 
       <p className="text-xs uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.5)' }}>
         {availablePickIds.length} option{availablePickIds.length === 1 ? '' : 's'} available

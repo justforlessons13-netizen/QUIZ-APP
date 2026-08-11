@@ -47,7 +47,7 @@ export function FinalStandings({ ranked, map, onPlayAgain, onDashboard }: FinalS
         )}
       </div>
 
-      <TerritoryMapView map={map} players={ranked} size={280} />
+      <TerritoryMapView map={map} players={ranked} size={480} />
 
       <div className="relative z-10 w-full max-w-md flex flex-col gap-2.5">
         {ranked.map((p, i) => {

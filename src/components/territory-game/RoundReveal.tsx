@@ -67,7 +67,7 @@ export function RoundReveal({ roundKind, players, map, lastCaptures, lastIncome 
         })}
       </div>
 
-      <TerritoryMapView map={map} players={players} lastCaptures={lastCaptures} size={260} />
+      <TerritoryMapView map={map} players={players} lastCaptures={lastCaptures} size={480} />
 
       <TerritoryScoreBar players={players} />
 

@@ -44,7 +44,7 @@ export function BattleQuestion({
       <TerritoryTurnBanner label={ROUND_LABEL[roundKind]} bannerKey={`${roundKind}-${attacker?.id}-${question?.id}`} />
 
       <div className="relative flex items-center justify-center">
-        <TerritoryMapView map={map} players={players} size={300} />
+        <TerritoryMapView map={map} players={players} size={560} />
 
         {/* Parchment question card, overlaying the map like the reference's in-battle modal */}
         <div
