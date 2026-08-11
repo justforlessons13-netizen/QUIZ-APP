@@ -8,6 +8,7 @@ import { TerritoryPack, TerritoryMode, TerritoryVisibility, playerCountFor } fro
 import { getMapById } from '@/data/territory-maps';
 import { LobbySetup } from '@/components/territory-game/LobbySetup';
 import { BattleQuestion } from '@/components/territory-game/BattleQuestion';
+import { TerritoryAnswerReveal } from '@/components/territory-game/TerritoryAnswerReveal';
 import { TerritoryPickScreen } from '@/components/territory-game/TerritoryPickScreen';
 import { RoundReveal } from '@/components/territory-game/RoundReveal';
 import { FinalStandings } from '@/components/territory-game/FinalStandings';
@@ -97,6 +98,15 @@ function TerritoryGameController({
               totalActive={game.respondingPlayerIds.length}
               attacker={attacker}
               defender={defender}
+            />
+          )}
+
+          {game.phase === 'answer-reveal' && game.lastAnswerBreakdown && (
+            <TerritoryAnswerReveal
+              key={`answer-reveal-${game.currentQuestionId}`}
+              breakdown={game.lastAnswerBreakdown}
+              players={game.players}
+              map={map}
             />
           )}
 

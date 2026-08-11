@@ -63,26 +63,20 @@ export function TerritoryMapView({
         <filter id="territory-parchment-shadow" x="-30%" y="-30%" width="160%" height="160%">
           <feDropShadow dx="0" dy="0.6" stdDeviation="0.8" floodColor="#4a3418" floodOpacity="0.5" />
         </filter>
-        <filter id="territory-halo-blur" x="-60%" y="-60%" width="220%" height="220%">
-          <feGaussianBlur stdDeviation="1.1" />
-        </filter>
       </defs>
 
       {isPolygon ? (
         <>
-          {/* Soft coastline glow rings, echoing a political-map reference look — no ocean fill, the
-              page's own background shows through */}
-          <g filter="url(#territory-halo-blur)">
-            {(map.coastline ?? []).map((ring, i) => (
-              <g key={i}>
-                <polygon points={ringPoints(ring)} fill="none" stroke="#dce9f5" strokeWidth={3.4} opacity={0.16} />
-                <polygon points={ringPoints(ring)} fill="none" stroke="#dce9f5" strokeWidth={1.8} opacity={0.22} />
-              </g>
-            ))}
-          </g>
+          {/* Soft coastline glow — a plain low-opacity stroke, no blur filter. feGaussianBlur/
+              feDropShadow over dozens of multi-point polygons forced software rasterization on
+              weaker tablets (several-second stalls on every phase transition that remounts this
+              map), so filters are avoided entirely for the polygon-style renderer. */}
+          {(map.coastline ?? []).map((ring, i) => (
+            <polygon key={i} points={ringPoints(ring)} fill="none" stroke="#dce9f5" strokeWidth={1.4} opacity={0.18} />
+          ))}
 
-          {/* Region fills — parchment texture per node via low-opacity blotches, ownership-driven color */}
-          <g filter="url(#territory-parchment-shadow)">
+          {/* Region fills — ownership-driven color, no drop-shadow filter (see note above) */}
+          <g>
             {map.nodes.flatMap((n) => {
               const owner = ownerOf(n.id, players);
               const fill = owner ? `url(#territory-owner-${owner.index % PLAYER_GRADIENTS.length})` : NEUTRAL_FILL;

@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc } from 'firebase/firestore';
 import {
   TerritoryGameState, TerritoryQuestion, TerritoryPlayer, TerritoryMode,
-  TerritoryVisibility, TerritoryPhase, TerritoryMapDef, TerritoryBattleResult,
+  TerritoryVisibility, TerritoryPhase, TerritoryMapDef, TerritoryBattleResult, TerritoryAnswerBreakdown,
   createEmptyTerritoryGame, playerCountFor, PLAYER_EMOJIS, compareTerritoryPlayers,
 } from '@/types/territory';
 import { pickRandomMap, getMapById } from '@/data/territory-maps';
@@ -15,6 +15,9 @@ export { QUESTION_SECONDS };
 // on top of the territory inheritance already happening below).
 const BATTLE_TILE_POINTS = 400;
 const BATTLE_STAR_POINTS = 300;
+// How long the answer-breakdown beat (correct answer + everyone's answer/time) stays up before
+// auto-advancing into whatever resolveQuestion actually decided (pick/reveal/final-standings/...).
+const ANSWER_REVEAL_MS = 4000;
 
 function checkAnswer(question: TerritoryQuestion, raw: string): boolean {
   const given = raw.trim().toLowerCase();
@@ -73,6 +76,7 @@ export function useTerritoryGame(
   const isRemoteUpdate = useRef(false);
   const prevGameRef = useRef<TerritoryGameState>(game);
   const resolvingRef = useRef(false);
+  const advancingRef = useRef(false);
 
   useEffect(() => {
     const db = getFirestore();
@@ -245,12 +249,21 @@ export function useTerritoryGame(
   // applies the hit directly, since only two players ever answer a battle question. Auto-triggered
   // (see the effect below) rather than requiring a host click, since these are objectively-scored
   // questions with only 2-3 players.
+  //
+  // Every branch below computes the real next state (pick order, hit/miss, everything) exactly as
+  // before, but routes it through toReveal() instead of returning it directly — that parks the
+  // computed state under pendingPhase and shows 'answer-reveal' first, so players can see who
+  // answered what/how fast/correctly before the pick screen (or whatever's next) actually appears.
   const resolveQuestion = useCallback(() => {
     setGame((prev) => {
       if (prev.phase !== 'question') return prev;
       const question = questions.find((q) => q.id === prev.currentQuestionId);
       const map = getMapById(prev.mapId);
       if (!question || !map) return prev;
+
+      const toReveal = (resolved: TerritoryGameState, breakdown: TerritoryAnswerBreakdown): TerritoryGameState => ({
+        ...resolved, phase: 'answer-reveal', pendingPhase: resolved.phase, lastAnswerBreakdown: breakdown, timerActive: false,
+      });
 
       if (prev.roundKind === 'battle') {
         if (!prev.attackerId || !prev.defenderId || !prev.targetNodeId) return prev;
@@ -262,6 +275,13 @@ export function useTerritoryGame(
         const attackerElapsed = attackerAnswer?.elapsedMs ?? Infinity;
         const defenderElapsed = defenderAnswer?.elapsedMs ?? Infinity;
         const attackerWins = attackerCorrect && (!defenderCorrect || attackerElapsed < defenderElapsed);
+        const breakdown: TerritoryAnswerBreakdown = {
+          correctAnswer: question.answer,
+          entries: [
+            { playerId: prev.attackerId, answer: attackerAnswer?.answer ?? '', isCorrect: attackerCorrect, elapsedMs: attackerAnswer?.elapsedMs ?? null },
+            { playerId: prev.defenderId, answer: defenderAnswer?.answer ?? '', isCorrect: defenderCorrect, elapsedMs: defenderAnswer?.elapsedMs ?? null },
+          ],
+        };
 
         let players = [...prev.players];
         const updatePlayer = (id: string, fn: (p: TerritoryPlayer) => TerritoryPlayer) => {
@@ -303,7 +323,7 @@ export function useTerritoryGame(
 
         const survivors = players.filter((p) => !p.eliminated);
         if (survivors.length <= 1) {
-          return { ...prev, players, lastBattleResult, phase: 'final-standings', timerActive: false };
+          return toReveal({ ...prev, players, lastBattleResult, phase: 'final-standings' }, breakdown);
         }
 
         if (attackerWins) {
@@ -312,17 +332,16 @@ export function useTerritoryGame(
           const availablePickIds = computeAvailablePickIds('battle', map, attacker, players);
           if (availablePickIds.length === 0) {
             // Fully boxed in (rare) — pass the turn rather than getting stuck with nothing to pick.
-            return passTurnToNextAttacker({ ...prev, players, lastBattleResult }, map);
+            return toReveal(passTurnToNextAttacker({ ...prev, players, lastBattleResult }, map), breakdown);
           }
-          return {
+          return toReveal({
             ...prev, players, lastBattleResult,
             phase: 'pick', pickOrder: [attacker.id], pickIndex: 0, pickSlotsRemaining: 1,
             availablePickIds, targetNodeId: null, defenderId: null,
-            timerActive: false,
-          };
+          }, breakdown);
         }
 
-        return passTurnToNextAttacker({ ...prev, players, lastBattleResult }, map);
+        return toReveal(passTurnToNextAttacker({ ...prev, players, lastBattleResult }, map), breakdown);
       }
 
       // base-capture / land-capture: rank everyone (correct-and-fastest first, then everyone
@@ -339,24 +358,30 @@ export function useTerritoryGame(
       const order = [...scored.filter((s) => s.isCorrect), ...scored.filter((s) => !s.isCorrect)];
       const pickOrder = order.map((s) => s.player.id);
       const roundKind = prev.roundKind as 'base-capture' | 'land-capture';
+      const breakdown: TerritoryAnswerBreakdown = {
+        correctAnswer: question.answer,
+        entries: order.map((s) => ({
+          playerId: s.player.id, answer: prev.answers[s.player.id]?.answer ?? '', isCorrect: s.isCorrect,
+          elapsedMs: prev.answers[s.player.id]?.elapsedMs ?? null,
+        })),
+      };
 
       const idx = findNextPickerIndex(pickOrder, roundKind, 0, map, prev.players);
 
       if (idx >= pickOrder.length) {
         // Nobody has an active pick this cycle (degenerate — shouldn't happen with 2-3 players).
-        return { ...prev, pickOrder, pickIndex: 0, pickSlotsRemaining: 0, availablePickIds: [], phase: 'reveal', timerActive: false };
+        return toReveal({ ...prev, pickOrder, pickIndex: 0, pickSlotsRemaining: 0, availablePickIds: [], phase: 'reveal' }, breakdown);
       }
 
       const picker = order[idx].player;
-      return {
+      return toReveal({
         ...prev,
         phase: 'pick',
         pickOrder,
         pickIndex: idx,
         pickSlotsRemaining: slotsForRank(roundKind, idx, pickOrder.length),
         availablePickIds: computeAvailablePickIds(roundKind, map, picker, prev.players),
-        timerActive: false,
-      };
+      }, breakdown);
     });
   }, [questions, passTurnToNextAttacker]);
 
@@ -375,6 +400,23 @@ export function useTerritoryGame(
       setTimeout(() => { resolvingRef.current = false; }, 500);
     }
   }, [game.phase, game.answers, game.timeLeft, game.timerActive, game.respondingPlayerIds, isAuthoritative, resolveQuestion]);
+
+  // Auto-advance out of the answer-reveal beat once it's had its moment on screen — every other
+  // field (pickOrder, availablePickIds, attackerId, ...) was already computed by resolveQuestion
+  // and is just sitting in pendingPhase, so this only ever needs to flip `phase`.
+  useEffect(() => {
+    if (!isAuthoritative) return;
+    if (game.phase !== 'answer-reveal') { advancingRef.current = false; return; }
+    if (advancingRef.current) return;
+    advancingRef.current = true;
+    const timeout = setTimeout(() => {
+      setGame((prev) => (prev.phase === 'answer-reveal' && prev.pendingPhase
+        ? { ...prev, phase: prev.pendingPhase, pendingPhase: null }
+        : prev));
+      advancingRef.current = false;
+    }, ANSWER_REVEAL_MS);
+    return () => clearTimeout(timeout);
+  }, [game.phase, isAuthoritative]);
 
   // Host action from the reveal screen: continue base-capture -> land-capture, keep drawing
   // land-capture questions until the map is fully claimed, then switch into battle.

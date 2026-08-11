@@ -109,9 +109,10 @@ export type TerritoryRoundKind = 'base-capture' | 'land-capture' | 'battle';
 
 export type TerritoryPhase =
   | 'lobby'
-  | 'question' // a broadcast (base/land-capture) or 1-on-1 duel (battle) question is live
-  | 'pick'     // someone must choose a target — a base slot, neutral land, or (battle) an enemy tile to attack
-  | 'reveal'   // base-capture/land-capture round summary; battle results are shown inline via lastBattleResult instead
+  | 'question'      // a broadcast (base/land-capture) or 1-on-1 duel (battle) question is live
+  | 'answer-reveal' // brief auto-advancing beat showing everyone's answer/correctness/time before pendingPhase
+  | 'pick'          // someone must choose a target — a base slot, neutral land, or (battle) an enemy tile to attack
+  | 'reveal'        // base-capture/land-capture round summary; battle results are shown inline via lastBattleResult instead
   | 'final-standings'
   | 'finished';
 
@@ -119,6 +120,18 @@ export interface TerritoryAnswer {
   answer: string;
   isCorrect: boolean | null;
   elapsedMs: number | null;
+}
+
+export interface TerritoryAnswerBreakdownEntry {
+  playerId: string;
+  answer: string;
+  isCorrect: boolean;
+  elapsedMs: number | null;
+}
+
+export interface TerritoryAnswerBreakdown {
+  correctAnswer: string;
+  entries: TerritoryAnswerBreakdownEntry[]; // pre-sorted correct-then-fastest, same rank order pick order uses
 }
 
 export interface TerritoryBattleResult {
@@ -152,6 +165,13 @@ export interface TerritoryGameState {
   // src/types/live-game.ts's RoundState.answers comment). Built as a map from day one here.
   respondingPlayerIds: string[];
   answers: Record<string, TerritoryAnswer>;
+
+  // ── Answer-reveal sub-state (phase === 'answer-reveal') — resolveQuestion computes the real
+  // next phase (pick/reveal/final-standings/etc, with every other field already set correctly)
+  // but parks it here instead of showing it immediately, so the answer breakdown can display for
+  // a few seconds first. See useTerritoryGame.ts's answer-reveal auto-advance effect.
+  pendingPhase: TerritoryPhase | null;
+  lastAnswerBreakdown: TerritoryAnswerBreakdown | null;
 
   // ── Pick sub-state (phase === 'pick') ──
   pickOrder: string[]; // playerIds who get an active pick this cycle, already rank-ordered
@@ -206,6 +226,8 @@ export function createEmptyTerritoryGame(
     questionRevealedAt: null,
     respondingPlayerIds: [],
     answers: {},
+    pendingPhase: null,
+    lastAnswerBreakdown: null,
     pickOrder: [],
     pickIndex: 0,
     pickSlotsRemaining: 0,
