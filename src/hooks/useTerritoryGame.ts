@@ -9,7 +9,12 @@ import { pickRandomMap, getMapById } from '@/data/territory-maps';
 import { QUESTION_SECONDS, pickQuestion, slotsForRank, computeAvailablePickIds, findNextPickerIndex } from '@/lib/territory-engine';
 
 export { QUESTION_SECONDS };
-const CORRECT_POINTS = 10;
+// Battle scoring: capturing a regular tile from another player is worth more than stripping a
+// base star (which doesn't transfer territory by itself), and fully eliminating a base additionally
+// transfers the defeated player's entire score to the attacker (a real "winner takes all" conquest,
+// on top of the territory inheritance already happening below).
+const BATTLE_TILE_POINTS = 400;
+const BATTLE_STAR_POINTS = 300;
 
 function checkAnswer(question: TerritoryQuestion, raw: string): boolean {
   const given = raw.trim().toLowerCase();
@@ -271,23 +276,25 @@ export function useTerritoryGame(
             const defender = players.find((p) => p.id === prev.defenderId)!;
             const newStars = Math.max(0, defender.baseStars - 1);
             if (newStars <= 0) {
-              // Base fully depleted — attacker inherits every tile the defender owned, not just the base.
+              // Base fully depleted — attacker inherits every tile the defender owned (not just the
+              // base) AND the defender's entire score, a full conquest rather than a partial steal.
               const inherited = defender.ownedNodeIds;
+              const conqueredScore = defender.score;
               updatePlayer(prev.attackerId, (p) => ({
                 ...p,
                 ownedNodeIds: Array.from(new Set([...p.ownedNodeIds, ...inherited])),
-                score: p.score + CORRECT_POINTS,
+                score: p.score + BATTLE_STAR_POINTS + conqueredScore,
               }));
-              updatePlayer(prev.defenderId, (p) => ({ ...p, ownedNodeIds: [], baseStars: 0, eliminated: true }));
+              updatePlayer(prev.defenderId, (p) => ({ ...p, ownedNodeIds: [], baseStars: 0, eliminated: true, score: 0 }));
               lastBattleResult = { attackerId: prev.attackerId, defenderId: prev.defenderId, targetNodeId: prev.targetNodeId, hit: true, starsLeft: 0, eliminated: true };
             } else {
               updatePlayer(prev.defenderId, (p) => ({ ...p, baseStars: newStars }));
-              updatePlayer(prev.attackerId, (p) => ({ ...p, score: p.score + CORRECT_POINTS }));
+              updatePlayer(prev.attackerId, (p) => ({ ...p, score: p.score + BATTLE_STAR_POINTS }));
               lastBattleResult = { attackerId: prev.attackerId, defenderId: prev.defenderId, targetNodeId: prev.targetNodeId, hit: true, starsLeft: newStars };
             }
           } else {
             updatePlayer(prev.defenderId, (p) => ({ ...p, ownedNodeIds: p.ownedNodeIds.filter((n) => n !== prev.targetNodeId) }));
-            updatePlayer(prev.attackerId, (p) => ({ ...p, ownedNodeIds: [...p.ownedNodeIds, prev.targetNodeId!], score: p.score + CORRECT_POINTS }));
+            updatePlayer(prev.attackerId, (p) => ({ ...p, ownedNodeIds: [...p.ownedNodeIds, prev.targetNodeId!], score: p.score + BATTLE_TILE_POINTS }));
             lastBattleResult = { attackerId: prev.attackerId, defenderId: prev.defenderId, targetNodeId: prev.targetNodeId, hit: true };
           }
         } else {

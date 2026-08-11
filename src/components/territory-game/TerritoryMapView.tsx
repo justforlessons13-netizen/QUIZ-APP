@@ -44,16 +44,15 @@ export function TerritoryMapView({
   const isPolygon = map.style === 'polygon';
 
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" style={{ overflow: 'visible' }}>
+    <svg
+      width={size} height={size} viewBox="0 0 100 100"
+      style={{ width: `min(${size}px, 62vh, 92vw)`, height: `min(${size}px, 62vh, 92vw)` }}
+    >
       <defs>
         <radialGradient id="territory-parchment" cx="48%" cy="40%" r="78%">
           <stop offset="0%" stopColor="#f2e2b3" />
           <stop offset="55%" stopColor="#e0c98a" />
           <stop offset="100%" stopColor="#c7a765" />
-        </radialGradient>
-        <radialGradient id="territory-ocean" cx="50%" cy="45%" r="75%">
-          <stop offset="0%" stopColor="#5b86b3" />
-          <stop offset="100%" stopColor="#365d85" />
         </radialGradient>
         {PLAYER_GRADIENTS.map(([light, dark], i) => (
           <linearGradient key={i} id={`territory-owner-${i}`} x1="20%" y1="10%" x2="90%" y2="100%">
@@ -71,8 +70,8 @@ export function TerritoryMapView({
 
       {isPolygon ? (
         <>
-          {/* Ocean backdrop + soft coastline glow rings, echoing a political-map reference look */}
-          <rect x={-10} y={-10} width={120} height={120} fill="url(#territory-ocean)" />
+          {/* Soft coastline glow rings, echoing a political-map reference look — no ocean fill, the
+              page's own background shows through */}
           <g filter="url(#territory-halo-blur)">
             {(map.coastline ?? []).map((ring, i) => (
               <g key={i}>
@@ -128,7 +127,7 @@ export function TerritoryMapView({
       ) : (
         <>
           {/* Parchment background with a few faint age-stain blotches */}
-          <rect x={-10} y={-10} width={120} height={120} fill="url(#territory-parchment)" />
+          <rect x={0} y={0} width={100} height={100} fill="url(#territory-parchment)" />
           {Array.from({ length: 6 }).map((_, i) => {
             const bx = hash(i * 3.1) * 100;
             const by = hash(i * 5.7 + 2) * 100;
