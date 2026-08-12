@@ -7,6 +7,7 @@ import { useTerritoryGame } from '@/hooks/useTerritoryGame';
 import { TerritoryPack, TerritoryMode, TerritoryVisibility, playerCountFor } from '@/types/territory';
 import { getMapById } from '@/data/territory-maps';
 import { LobbySetup } from '@/components/territory-game/LobbySetup';
+import { TerritoryMapView } from '@/components/territory-game/TerritoryMapView';
 import { BattleQuestion } from '@/components/territory-game/BattleQuestion';
 import { TerritoryAnswerReveal } from '@/components/territory-game/TerritoryAnswerReveal';
 import { TerritoryPickScreen } from '@/components/territory-game/TerritoryPickScreen';
@@ -68,83 +69,96 @@ function TerritoryGameController({
         <span className="font-bungee text-base tracking-wide" style={{ color: theme.color1 }}>PLAYHUB</span>
       </header>
 
-      <main className="relative z-20 flex-1 flex flex-col items-center justify-center">
-        <AnimatePresence mode="wait">
-          {game.phase === 'lobby' && (
-            <LobbySetup
-              key="lobby"
-              players={game.players}
-              requiredCount={playerCountFor(mode)}
-              mode={mode}
-              gameCode={gameCode}
-              packName={pack.name}
-              map={map}
-              onAddPlayer={addPlayer}
-              onRemovePlayer={removePlayer}
-              onStart={startGame}
-            />
-          )}
+      {game.phase === 'lobby' || game.phase === 'final-standings' || game.phase === 'finished' ? (
+        <main className="relative z-20 flex-1 flex flex-col items-center justify-center">
+          <AnimatePresence mode="wait">
+            {game.phase === 'lobby' && (
+              <LobbySetup
+                key="lobby"
+                players={game.players}
+                requiredCount={playerCountFor(mode)}
+                mode={mode}
+                gameCode={gameCode}
+                packName={pack.name}
+                map={map}
+                onAddPlayer={addPlayer}
+                onRemovePlayer={removePlayer}
+                onStart={startGame}
+              />
+            )}
 
-          {game.phase === 'question' && (
-            <BattleQuestion
-              key={`question-${game.currentQuestionId}`}
-              roundKind={game.roundKind}
-              question={currentQuestion}
-              timeLeft={game.timeLeft}
-              maxTime={20}
-              players={game.players}
-              map={map}
-              answeredCount={answeredCount}
-              totalActive={game.respondingPlayerIds.length}
-              attacker={attacker}
-              defender={defender}
-            />
-          )}
-
-          {game.phase === 'answer-reveal' && game.lastAnswerBreakdown && (
-            <TerritoryAnswerReveal
-              key={`answer-reveal-${game.currentQuestionId}`}
-              breakdown={game.lastAnswerBreakdown}
-              players={game.players}
-              map={map}
-            />
-          )}
-
-          {game.phase === 'pick' && picker && (
-            <TerritoryPickScreen
-              key="pick"
-              roundKind={game.roundKind}
-              picker={picker}
-              attacker={attacker}
+            {(game.phase === 'final-standings' || game.phase === 'finished') && (
+              <FinalStandings
+                key="final"
+                ranked={ranked}
+                map={map}
+                onPlayAgain={resetGame}
+                onDashboard={() => navigate('/territory')}
+              />
+            )}
+          </AnimatePresence>
+        </main>
+      ) : (
+        <main className="relative z-20 flex-1 overflow-hidden">
+          {/* Shared full-bleed map backdrop for every in-game phase — rendered once here instead
+              of inside each phase component, so the map can fill nearly the whole screen. */}
+          <div className="absolute inset-0 flex items-center justify-center p-4 md:p-10">
+            <TerritoryMapView
               map={map}
               players={game.players}
-              availablePickIds={game.availablePickIds}
+              fill
+              highlightedNodeIds={game.phase === 'pick' ? game.availablePickIds : undefined}
+              lastCaptures={game.phase === 'reveal' ? game.lastCaptures : undefined}
+              ownerHighlightPlayerId={game.phase === 'pick' ? picker?.id : undefined}
             />
-          )}
+          </div>
 
-          {game.phase === 'reveal' && (
-            <RoundReveal
-              key="reveal"
-              roundKind={game.roundKind}
-              players={game.players}
-              map={map}
-              lastCaptures={game.lastCaptures ?? {}}
-              lastIncome={game.lastIncome ?? {}}
-              onContinue={continueFromReveal}
-            />
-          )}
+          <AnimatePresence mode="wait">
+            {game.phase === 'question' && (
+              <BattleQuestion
+                key={`question-${game.currentQuestionId}`}
+                roundKind={game.roundKind}
+                question={currentQuestion}
+                timeLeft={game.timeLeft}
+                maxTime={20}
+                players={game.players}
+                answeredCount={answeredCount}
+                totalActive={game.respondingPlayerIds.length}
+                attacker={attacker}
+                defender={defender}
+              />
+            )}
 
-          {(game.phase === 'final-standings' || game.phase === 'finished') && (
-            <FinalStandings
-              key="final"
-              ranked={ranked}
-              map={map}
-              onPlayAgain={resetGame}
-              onDashboard={() => navigate('/territory')}
-            />
-          )}
-        </AnimatePresence>
-      </main>
+            {game.phase === 'answer-reveal' && game.lastAnswerBreakdown && (
+              <TerritoryAnswerReveal
+                key={`answer-reveal-${game.currentQuestionId}`}
+                breakdown={game.lastAnswerBreakdown}
+                players={game.players}
+              />
+            )}
+
+            {game.phase === 'pick' && picker && (
+              <TerritoryPickScreen
+                key="pick"
+                roundKind={game.roundKind}
+                picker={picker}
+                attacker={attacker}
+                players={game.players}
+                availablePickIds={game.availablePickIds}
+              />
+            )}
+
+            {game.phase === 'reveal' && (
+              <RoundReveal
+                key="reveal"
+                players={game.players}
+                lastIncome={game.lastIncome ?? {}}
+                onContinue={continueFromReveal}
+              />
+            )}
+          </AnimatePresence>
+        </main>
+      )}
     </div>
   );
 }

@@ -1,32 +1,32 @@
 import { motion } from 'framer-motion';
 import { Check, X } from 'lucide-react';
-import { TerritoryAnswerBreakdown, TerritoryPlayer, TerritoryMapDef } from '@/types/territory';
-import { TerritoryMapView, PLAYER_COLORS } from './TerritoryMapView';
+import { TerritoryAnswerBreakdown, TerritoryPlayer } from '@/types/territory';
+import { PLAYER_COLORS } from './TerritoryMapView';
 import { TerritoryScoreBar } from './TerritoryScoreBar';
 import { Emoji3D } from '@/components/ui/Emoji3D';
 
 interface TerritoryAnswerRevealProps {
   breakdown: TerritoryAnswerBreakdown;
   players: TerritoryPlayer[];
-  map: TerritoryMapDef;
 }
 
 // Brief auto-advancing beat between 'question' and whatever's next (pick/reveal/final-standings) —
 // shows everyone's answer, correctness, and time so the pick order (correct-then-fastest) that's
-// about to play out isn't a mystery. Same "parchment card over the map" layout as BattleQuestion.tsx.
-export function TerritoryAnswerReveal({ breakdown, players, map }: TerritoryAnswerRevealProps) {
+// about to play out isn't a mystery. Overlay content only — the map itself is rendered once as a
+// shared full-bleed backdrop by TerritoryGameController (src/pages/TerritoryGame.tsx).
+export function TerritoryAnswerReveal({ breakdown, players }: TerritoryAnswerRevealProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="relative w-full flex-1 flex flex-col items-center px-4 py-4 gap-3"
+      className="absolute inset-0 flex flex-col items-center justify-between px-4 py-4 md:py-8"
     >
-      <div className="relative flex items-center justify-center">
-        <TerritoryMapView map={map} players={players} size={560} />
+      <div />
 
+      <div className="flex-1 w-full flex items-center justify-center">
         <div
-          className="absolute inset-x-[-8%] top-1/2 -translate-y-1/2 rounded-2xl px-5 py-4 flex flex-col items-center gap-3"
+          className="w-full max-w-lg rounded-2xl px-5 py-4 flex flex-col items-center gap-3"
           style={{
             background: 'linear-gradient(180deg, #e9d8ab 0%, #d4bd82 100%)',
             border: '3px solid #7a5a2e',

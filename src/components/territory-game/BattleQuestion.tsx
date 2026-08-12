@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion';
-import { TerritoryQuestion, TerritoryPlayer, TerritoryRoundKind, TerritoryMapDef } from '@/types/territory';
-import { TerritoryMapView } from './TerritoryMapView';
+import { TerritoryQuestion, TerritoryPlayer, TerritoryRoundKind } from '@/types/territory';
 import { TerritoryTurnBanner } from './TerritoryTurnBanner';
 import { TerritoryScoreBar } from './TerritoryScoreBar';
 import { gameThemes, alpha } from '@/lib/game-themes';
@@ -19,15 +18,16 @@ interface BattleQuestionProps {
   timeLeft: number;
   maxTime: number;
   players: TerritoryPlayer[];
-  map: TerritoryMapDef;
   answeredCount: number;
   totalActive: number;
   attacker?: TerritoryPlayer | null; // battle only
   defender?: TerritoryPlayer | null; // battle only
 }
 
+// Overlay content only — the map itself is rendered once as a shared full-bleed backdrop by
+// TerritoryGameController (src/pages/TerritoryGame.tsx), not here.
 export function BattleQuestion({
-  roundKind, question, timeLeft, players, map, answeredCount, totalActive, attacker, defender,
+  roundKind, question, timeLeft, players, answeredCount, totalActive, attacker, defender,
 }: BattleQuestionProps) {
   const isLowTime = timeLeft <= 5 && timeLeft > 0;
   const label = roundKind === 'battle' && attacker && defender
@@ -39,16 +39,14 @@ export function BattleQuestion({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="relative w-full flex-1 flex flex-col items-center px-4 py-4 gap-3"
+      className="absolute inset-0 flex flex-col items-center justify-between px-4 py-4 md:py-8"
     >
       <TerritoryTurnBanner label={ROUND_LABEL[roundKind]} bannerKey={`${roundKind}-${attacker?.id}-${question?.id}`} />
 
-      <div className="relative flex items-center justify-center">
-        <TerritoryMapView map={map} players={players} size={560} />
-
-        {/* Parchment question card, overlaying the map like the reference's in-battle modal */}
+      {/* Parchment question card, floating over the shared map backdrop */}
+      <div className="flex-1 w-full flex items-center justify-center">
         <div
-          className="absolute inset-x-[-8%] top-1/2 -translate-y-1/2 rounded-2xl px-5 py-4 flex flex-col items-center gap-3"
+          className="w-full max-w-lg rounded-2xl px-5 py-4 flex flex-col items-center gap-3"
           style={{
             background: 'linear-gradient(180deg, #e9d8ab 0%, #d4bd82 100%)',
             border: '3px solid #7a5a2e',
@@ -87,13 +85,14 @@ export function BattleQuestion({
         </div>
       </div>
 
-      <TerritoryScoreBar players={players} />
-
-      <div
-        className="font-bungee text-[11px] uppercase tracking-widest px-4 py-1.5 rounded-full"
-        style={{ background: alpha(theme.color1, 0.15), border: `1px solid ${alpha(theme.color1, 0.4)}`, color: theme.color1 }}
-      >
-        {label}
+      <div className="flex flex-col items-center gap-3">
+        <TerritoryScoreBar players={players} />
+        <div
+          className="font-bungee text-[11px] uppercase tracking-widest px-4 py-1.5 rounded-full"
+          style={{ background: alpha(theme.color1, 0.15), border: `1px solid ${alpha(theme.color1, 0.4)}`, color: theme.color1 }}
+        >
+          {label}
+        </div>
       </div>
     </motion.div>
   );

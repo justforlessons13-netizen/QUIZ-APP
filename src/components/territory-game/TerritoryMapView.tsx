@@ -34,19 +34,22 @@ interface TerritoryMapViewProps {
   lastCaptures?: Record<string, string[]>;
   onSelectNode?: (nodeId: string) => void;
   highlightedNodeIds?: string[];
+  ownerHighlightPlayerId?: string; // dash-outlines this player's entire owned territory (polygon maps only)
+  fill?: boolean; // stretch to fill the parent box (the shared full-bleed backdrop) instead of sizing off `size`
 }
 
 export function TerritoryMapView({
-  map, players, size = 320, lastCaptures = {}, onSelectNode, highlightedNodeIds,
+  map, players, size = 320, lastCaptures = {}, onSelectNode, highlightedNodeIds, ownerHighlightPlayerId, fill = false,
 }: TerritoryMapViewProps) {
   const capturedNodeIds = new Set(Object.values(lastCaptures).flat());
   const highlighted = new Set(highlightedNodeIds ?? []);
   const isPolygon = map.style === 'polygon';
+  const ownerHighlightPlayer = ownerHighlightPlayerId ? players.find((p) => p.id === ownerHighlightPlayerId) : null;
 
   return (
     <svg
       width={size} height={size} viewBox="0 0 100 100"
-      style={{ width: `min(${size}px, 62vh, 92vw)`, height: `min(${size}px, 62vh, 92vw)` }}
+      className={fill ? 'w-full h-full' : undefined}
     >
       <defs>
         <radialGradient id="territory-parchment" cx="48%" cy="40%" r="78%">
@@ -117,6 +120,24 @@ export function TerritoryMapView({
               <animate attributeName="opacity" values="0.9;0.45;0.9" dur="1.1s" repeatCount="indefinite" />
             </polygon>
           )))}
+
+          {/* Picker's-own-territory outline — static (no pulse), so it reads as "this is already
+              theirs" rather than competing with the pulsing available-target highlight above */}
+          {ownerHighlightPlayer && ownerHighlightPlayer.ownedNodeIds.flatMap((nodeId) => {
+            const node = map.nodes.find((n) => n.id === nodeId);
+            return (node?.polygons ?? []).map((ring, ri) => (
+              <polygon
+                key={`${nodeId}-owner-${ri}`}
+                points={ringPoints(ring)}
+                fill="none"
+                stroke="#fff"
+                strokeWidth={0.55}
+                strokeDasharray="2.2,1.4"
+                opacity={0.8}
+                pointerEvents="none"
+              />
+            ));
+          })}
         </>
       ) : (
         <>
