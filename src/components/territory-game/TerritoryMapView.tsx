@@ -218,13 +218,17 @@ export function TerritoryMapView({
                 <text x={n.x} y={n.y + 1.3} fontSize={3.8} textAnchor="middle" style={{ fontWeight: 700 }}>🏰</text>
                 {owner && owner.player.baseNodeId === n.id && (
                   <g>
+                    {/* Light backdrop pill so both gold (filled) and black (lost) stars stay
+                        legible regardless of the terrain color underneath — a bare black glyph
+                        was invisible against dark orange/blue owned-territory fills. */}
+                    <ellipse cx={n.x} cy={n.y + 4.7} rx={4.6} ry={2.3} fill="#f2e2b3" stroke="#4a3418" strokeWidth={0.3} opacity={0.95} />
                     {[0, 1, 2].map((i) => {
                       const filled = i < owner.player.baseStars;
                       return (
                         <text
                           key={i}
-                          x={n.x + (i - 1) * 2.5} y={n.y + 5.2} fontSize={2.9} textAnchor="middle"
-                          fill={filled ? '#ffd23c' : '#1a1006'}
+                          x={n.x + (i - 1) * 2.5} y={n.y + 5.5} fontSize={2.9} textAnchor="middle"
+                          fill={filled ? '#e8a614' : '#3a2712'}
                         >
                           {filled ? '★' : '☆'}
                           {filled && (
