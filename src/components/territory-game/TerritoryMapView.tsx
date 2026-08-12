@@ -217,9 +217,23 @@ export function TerritoryMapView({
                 <circle cx={n.x} cy={n.y} r={3.6} fill="#3a2712" stroke="#e8b84b" strokeWidth={0.7} />
                 <text x={n.x} y={n.y + 1.3} fontSize={3.8} textAnchor="middle" style={{ fontWeight: 700 }}>🏰</text>
                 {owner && owner.player.baseNodeId === n.id && (
-                  <text x={n.x} y={n.y + 5.2} fontSize={2.8} textAnchor="middle" style={{ letterSpacing: '0.5px' }}>
-                    {'★'.repeat(owner.player.baseStars) + '☆'.repeat(Math.max(0, 3 - owner.player.baseStars))}
-                  </text>
+                  <g>
+                    {[0, 1, 2].map((i) => {
+                      const filled = i < owner.player.baseStars;
+                      return (
+                        <text
+                          key={i}
+                          x={n.x + (i - 1) * 2.5} y={n.y + 5.2} fontSize={2.9} textAnchor="middle"
+                          fill={filled ? '#ffd23c' : '#1a1006'}
+                        >
+                          {filled ? '★' : '☆'}
+                          {filled && (
+                            <animate attributeName="opacity" values="1;0.5;1" dur="1.6s" begin={`${i * 0.25}s`} repeatCount="indefinite" />
+                          )}
+                        </text>
+                      );
+                    })}
+                  </g>
                 )}
                 <text
                   x={n.x} y={n.y - 5.8} fontSize={isPolygon ? 2.4 : 3.2} textAnchor="middle" fill="#3a2712"
